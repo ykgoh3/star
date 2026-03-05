@@ -156,21 +156,24 @@ public abstract class Unit {
         if (Math.abs(velX) > 0.05 || Math.abs(velY) > 0.05) return;
 
         if (attackTimer > 0 || target == null) return;
-        if (target.hp <= 0 && target.deathTimer <= 290) return;
+        if (target.hp <= 0) return;
 
         double dist = vectorMath.getDistance(x, y, target.x, target.y);
         if (dist <= range + 5) {
             target.hp -= damage;
 
             // Auto-retaliate when taking damage.
-            if (target.hp > 0 && target.team != this.team && canAutoRetaliate(target)) {
-                target.target = this;
-                target.manualOrder = false;
-                target.commandState = 1;
-                target.isMoving = false;
-                target.destX = target.x;
-                target.destY = target.y;
-                target.autoRetaliating = true;
+            if (target.hp > 0 && target.team != this.team) {
+                if (canAutoRetaliate(target)) {
+                    target.target = this;
+                    target.manualOrder = false;
+                    target.commandState = 1;
+                    target.isMoving = false;
+                    target.destX = target.x;
+                    target.destY = target.y;
+                    target.autoRetaliating = true;
+                }
+                // Request nearby allies to assist even if the damaged unit is already engaged.
                 alertNearbyAllies(target, panel);
             }
 
