@@ -56,11 +56,15 @@ public class GamePanel extends JPanel {
 
             // Keep attack-move target if already assigned (e.g. ally assist).
             if (!u.manualOrder) {
-                boolean noValidTarget = (u.target == null) || (u.target.hp <= 0 && u.target.deathTimer <= 290);
+                boolean noValidTarget = (u.target == null) || (u.target.hp <= 0);
 
                 if (u.autoRetaliating) {
                     if (noValidTarget) {
-                        Unit nearest = findNearestEnemyInRange(u, u.range + 160);
+                        Unit nearest = findNearestEnemyInRange(u, u.range + 200);
+                        if (nearest == null) {
+                            // Fallback: continue retaliation chain to the closest enemy on the map.
+                            nearest = findNearestEnemyInRange(u, Double.MAX_VALUE);
+                        }
                         if (nearest != null) {
                             u.target = nearest;
                         } else {
@@ -79,18 +83,21 @@ public class GamePanel extends JPanel {
                         u.destY = u.y;
                     }
                 } else if (u.commandState == 1 && noValidTarget) {
-                    // While chasing, if target dies/disappears, keep fighting nearby enemies.
-                    // If none nearby, hold position here (do not return to old destination).
                     Unit nearest = findNearestEnemyInRange(u, u.range + 20);
                     if (nearest != null) {
                         u.target = nearest;
                     } else {
-                        u.stop();
+                        // Attack-move keeps advancing to destination; auto-engage (dest ~= current) will hold.
+                        double distToDest = vectorMath.getDistance(u.x, u.y, u.destX, u.destY);
+                        if (distToDest <= Math.max(4.0, u.size * 0.5)) {
+                            u.stop();
+                        } else {
+                            u.target = null;
+                        }
                     }
                 }
-            } else if (u.target != null && u.target.hp <= 0 && u.target.deathTimer <= 290) {
+            } else if (u.target != null && u.target.hp <= 0) {
                 u.target = null;
-                u.manualOrder = false;
             }
 
             if (u.hp <= 0) {

@@ -15,17 +15,10 @@ public class AttackMoveLogic {
                 unit.velX = 0;
                 unit.velY = 0;
                 return;
-            } else if (dist <= unit.range + 150) {
+            } else {
+                // Keep chasing a live target regardless of leash distance.
                 unit.targetX = unit.target.x;
                 unit.targetY = unit.target.y;
-            } else {
-                unit.target = null;
-                if (unit.autoRetaliating) {
-                    unit.stop();
-                    return;
-                }
-                unit.targetX = unit.destX;
-                unit.targetY = unit.destY;
             }
         } else {
             if (unit.autoRetaliating) {
