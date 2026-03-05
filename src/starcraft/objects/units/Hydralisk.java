@@ -38,7 +38,7 @@ public class Hydralisk extends Unit {
             return;
         }
 
-        double lookAngle = isMoving ? currentAngle : (target != null ? Math.atan2(target.y - y, target.x - x) : currentAngle);
+        double lookAngle = getLookAngle();
 
         if (image != null) {
             double lookX = x + Math.cos(lookAngle);

@@ -12,7 +12,7 @@ import java.awt.*;
 import java.util.ArrayList;
 
 public class GamePanel extends JPanel {
-    private ArrayList<Unit> units = new ArrayList<>();
+    private final ArrayList<Unit> units = new ArrayList<>();
     private InputHandler inputHandler;
     private TerrainGrid terrain;
     private Timer gameLoop;
@@ -53,15 +53,12 @@ public class GamePanel extends JPanel {
         for (int i = 0; i < units.size(); i++) {
             Unit u = units.get(i);
 
-            if (!u.manualOrder || u.target == null || (u.target.hp <= 0 && u.target.deathTimer <= 290)) {
-                Unit nearest = findNearestEnemy(u);
-
-                if (nearest != null) {
-                    u.target = nearest;
-                } else if (u.target != null && u.target.hp <= 0) {
-                    u.target = null;
-                    u.manualOrder = false;
-                }
+            // Auto-acquire only nearby enemies. Otherwise keep target null while idle.
+            if (!u.manualOrder) {
+                u.target = findNearestEnemyInRange(u, u.range + 20);
+            } else if (u.target != null && u.target.hp <= 0 && u.target.deathTimer <= 290) {
+                u.target = null;
+                u.manualOrder = false;
             }
 
             if (u.hp <= 0) {
@@ -77,9 +74,10 @@ public class GamePanel extends JPanel {
         repaint();
     }
 
-    private Unit findNearestEnemy(Unit me) {
+    private Unit findNearestEnemyInRange(Unit me, double maxRange) {
         Unit closest = null;
-        double minDist = Double.MAX_VALUE;
+        double minDist = maxRange;
+
         for (Unit enemy : units) {
             if (enemy.team != me.team && enemy.hp > 0) {
                 double d = vectorMath.getDistance(me.x, me.y, enemy.x, enemy.y);
@@ -89,6 +87,7 @@ public class GamePanel extends JPanel {
                 }
             }
         }
+
         return closest;
     }
 

@@ -1,40 +1,27 @@
 package starcraft.engine;
 
 import java.awt.*;
-//유닛 각종 유틸클래스
 
-public class RenderUtils { //유닛 회전
+public class RenderUtils {
     public static void drawRotatedImage(Graphics g, Image image, double x, double y, int size, double targetX, double targetY) {
         Graphics2D g2d = (Graphics2D) g.create();
 
-        // 1. 정확한 각도 계산 (라디안)
-        double rawAngle = Math.atan2(targetY - y, targetX - x);
+        // Rotate 대신 좌/우 반전만 적용
+        int drawX = (int) x - size / 2;
+        int drawY = (int) y - size / 2;
+        boolean faceRight = targetX >= x;
 
-        // 2. 32방향으로 각도 스냅 (11.25도 단위)
-        double snappedAngle = snapAngle(rawAngle, 32);
+        if (faceRight) {
+            g2d.drawImage(image, drawX, drawY, size, size, null);
+        } else {
+            // Negative width draws a horizontally flipped image.
+            g2d.drawImage(image, drawX + size, drawY, -size, size, null);
+        }
 
-        g2d.rotate(snappedAngle, x, y);
-        g2d.drawImage(image, (int) x - size / 2, (int) y - size / 2, size, size, null);
         g2d.dispose();
     }
 
-    private static double snapAngle(double angle, int directions) {
-        // 라디안을 0 ~ 2PI 범위로 정규화
-        double twoPi = 2 * Math.PI;
-        double normalizedAngle = (angle % twoPi + twoPi) % twoPi;
-
-        // 방향의 크기 (32방향이면 360/32 = 11.25도)
-        double step = twoPi / directions;
-
-        // 가장 가까운 방향 인덱스 계산 (반올림)
-        long index = Math.round(normalizedAngle / step);
-
-        // 다시 라디안으로 변환
-        return index * step;
-    }
-
     public static void drawHealthBar(Graphics g, double x, double y, int size, int hp, int maxHp, int team) {
-        // ... 기존 코드 유지
         g.setColor(team == 0 ? Color.GREEN : Color.RED);
         int ovalWidth = (int) (size * 0.8);
         int ovalHeight = (int) (size * 0.3);

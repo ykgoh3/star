@@ -4,14 +4,19 @@ import starcraft.core.GamePanel;
 import starcraft.core.TerrainGrid;
 import starcraft.engine.RenderUtils;
 import starcraft.engine.vectorMath;
-import starcraft.objects.logic.*;
+import starcraft.objects.logic.AttackMoveLogic;
+import starcraft.objects.logic.IdleLogic;
+import starcraft.objects.logic.MeleeAttackMoveLogic;
+import starcraft.objects.logic.MoveLogic;
+import starcraft.objects.logic.StopLogic;
 
 import java.awt.*;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 public abstract class Unit {
-    public int commandState = 0; // 0: 대기, 1: 어택땅, 2: 순수이동
+    public int commandState = 0; // 0: idle, 1: attack-move, 2: move
     public double destX, destY;
     public boolean aKeyPressed = false;
 
@@ -29,10 +34,7 @@ public abstract class Unit {
     public int pathSkipTimer = 0;
     public int sideRecheckTimer = 0;
 
-    // [추가] 핏자국 유지 타이머 (약 10초 = 300프레임)
     public int deathTimer = 300;
-
-    // [추가] 공격 직후 이동을 멈추게 하는 후딜레이 타이머
     public int postAttackDelayTimer = 0;
 
     public double lastX, lastY;
@@ -47,11 +49,19 @@ public abstract class Unit {
     public int hitEffectTimer = 0;
     public Image image;
 
+    // Idle look switching state (left/right only)
+    public boolean idleFacingRight = true;
+    public int idleLookInterval = randomIdleLookInterval();
+    public int idleLookTimer = idleLookInterval;
+
     public Unit(int x, int y, int team) {
-        this.x = x; this.y = y;
-        this.targetX = x; this.targetY = y;
+        this.x = x;
+        this.y = y;
+        this.targetX = x;
+        this.targetY = y;
         this.team = team;
-        this.lastX = x; this.lastY = y;
+        this.lastX = x;
+        this.lastY = y;
     }
 
     public void update(List<Unit> allUnits, TerrainGrid terrain) {
@@ -60,14 +70,12 @@ public abstract class Unit {
         if (hitEffectTimer > 0) hitEffectTimer--;
         if (postAttackDelayTimer > 0) postAttackDelayTimer--;
 
-        // 사격 직후 후딜레이 처리
         if (postAttackDelayTimer > 0) {
             velX = 0;
             velY = 0;
             return;
         }
 
-        // 상태 머신 (취소했던 복잡한 양보 로직을 모두 제거하고 원래의 깔끔한 상태로 복구)
         if (commandState == 0) {
             IdleLogic.execute(this, allUnits, terrain);
         } else if (commandState == 1) {
@@ -79,6 +87,8 @@ public abstract class Unit {
         } else if (commandState == 2) {
             MoveLogic.execute(this, allUnits, terrain);
         }
+
+        updateIdleLook();
     }
 
     public void handleBypassDirection(double mX, double mY, List<Unit> allUnits, TerrainGrid terrain) {
@@ -115,8 +125,9 @@ public abstract class Unit {
                 double push = (minDist - d) * 0.5;
                 double pushX = (x - other.x) / d * push;
                 double pushY = (y - other.y) / d * push;
-                if (terrain.isWalkableCell((int)((x + pushX) / terrain.cellSize), (int)((y + pushY) / terrain.cellSize))) {
-                    x += pushX; y += pushY;
+                if (terrain.isWalkableCell((int) ((x + pushX) / terrain.cellSize), (int) ((y + pushY) / terrain.cellSize))) {
+                    x += pushX;
+                    y += pushY;
                 }
             }
         }
@@ -126,8 +137,8 @@ public abstract class Unit {
         double r = size * 0.5;
         for (int i = 0; i < 8; i++) {
             double ang = i * Math.PI / 4.0;
-            if (!terrain.isWalkableCell((int)((nextX + Math.cos(ang) * r) / terrain.cellSize),
-                    (int)((nextY + Math.sin(ang) * r) / terrain.cellSize))) return false;
+            if (!terrain.isWalkableCell((int) ((nextX + Math.cos(ang) * r) / terrain.cellSize),
+                    (int) ((nextY + Math.sin(ang) * r) / terrain.cellSize))) return false;
         }
 
         for (Unit other : allUnits) {
@@ -144,14 +155,11 @@ public abstract class Unit {
         if (Math.abs(velX) > 0.05 || Math.abs(velY) > 0.05) return;
 
         if (attackTimer > 0 || target == null) return;
-
-        // [해결 2] 오버킬: 타겟이 죽은 지 10프레임(deathTimer <= 290)이 지났을 때만 사격을 포기합니다.
-        // 방금 죽은 시체(deathTimer > 290)라면 사격을 진행하여 총알을 낭비합니다!
         if (target.hp <= 0 && target.deathTimer <= 290) return;
 
         double dist = vectorMath.getDistance(x, y, target.x, target.y);
         if (dist <= range + 5) {
-            target.hp -= damage; // 죽은 적의 체력을 음수로 더 깎으며 내 공격기회 소비
+            target.hp -= damage;
             attackTimer = attackDelay;
 
             postAttackDelayTimer = 8;
@@ -168,7 +176,8 @@ public abstract class Unit {
             for (int i = path.size() - 1; i >= pathIndex; i--) {
                 Point p = path.get(i);
                 if (isPathClear(x, y, terrain.cellCenterX(p.x), terrain.cellCenterY(p.y), terrain)) {
-                    pathIndex = i; break;
+                    pathIndex = i;
+                    break;
                 }
             }
         }
@@ -180,14 +189,14 @@ public abstract class Unit {
 
     public boolean isPathClear(double x1, double y1, double x2, double y2, TerrainGrid terrain) {
         double d = vectorMath.getDistance(x1, y1, x2, y2);
-        int steps = (int)(d / (terrain.cellSize / 2.0));
+        int steps = (int) (d / (terrain.cellSize / 2.0));
         for (int i = 1; i <= steps; i++) {
-            double ratio = (double)i / steps;
+            double ratio = (double) i / steps;
             double cx = x1 + (x2 - x1) * ratio;
             double cy = y1 + (y2 - y1) * ratio;
-            if (!terrain.isWalkableCell((int)(cx/terrain.cellSize), (int)(cy/terrain.cellSize))) return false;
-            if (!terrain.isWalkableCell((int)((cx + size*0.3)/terrain.cellSize), (int)(cy/terrain.cellSize))) return false;
-            if (!terrain.isWalkableCell((int)((cx - size*0.3)/terrain.cellSize), (int)(cy/terrain.cellSize))) return false;
+            if (!terrain.isWalkableCell((int) (cx / terrain.cellSize), (int) (cy / terrain.cellSize))) return false;
+            if (!terrain.isWalkableCell((int) ((cx + size * 0.3) / terrain.cellSize), (int) (cy / terrain.cellSize))) return false;
+            if (!terrain.isWalkableCell((int) ((cx - size * 0.3) / terrain.cellSize), (int) (cy / terrain.cellSize))) return false;
         }
         return true;
     }
@@ -197,6 +206,7 @@ public abstract class Unit {
     }
 
     public abstract void draw(Graphics g);
+
     protected abstract void drawAttackEffect(Graphics g, double lookAngle);
 
     protected void drawHitEffect(Graphics g) {
@@ -204,16 +214,66 @@ public abstract class Unit {
             g.setColor(new Color(255, 255, 150));
             int innerSize = 6;
             int outerSize = 10;
-            g.drawOval((int)x - innerSize / 2, (int)y - innerSize / 2, innerSize, innerSize);
-            g.drawOval((int)x - outerSize / 2, (int)y - outerSize / 2, outerSize, outerSize);
+            g.drawOval((int) x - innerSize / 2, (int) y - innerSize / 2, innerSize, innerSize);
+            g.drawOval((int) x - outerSize / 2, (int) y - outerSize / 2, outerSize, outerSize);
         }
     }
 
     protected void drawHealthBar(Graphics g) {
-        // [핵심 수정] 선택된(isSelected) 유닛만 체력바와 선택 원을 그리며, 팀(team) 정보를 넘겨 색상을 구분합니다!
         if (this.isSelected) {
             RenderUtils.drawHealthBar(g, x, y, size, hp, maxHp, this.team);
         }
     }
-    protected Image loadImage(String path) { try { return javax.imageio.ImageIO.read(getClass().getResource(path)); } catch (Exception e) { return null; } }
+
+    protected void updateIdleLook() {
+        if (isMoving) return;
+        if (isEngagingTarget()) return;
+        if (attackEffectTimer > 0 || postAttackDelayTimer > 0) return;
+
+        if (idleLookTimer <= 0) {
+            idleFacingRight = !idleFacingRight;
+            idleLookInterval = randomIdleLookInterval();
+            idleLookTimer = idleLookInterval;
+        } else {
+            idleLookTimer--;
+        }
+    }
+
+    protected int randomIdleLookInterval() {
+        return ThreadLocalRandom.current().nextInt(100, 151);
+    }
+
+    protected boolean isEngagingTarget() {
+        if (target == null || target.hp <= 0) return false;
+        double dist = vectorMath.getDistance(x, y, target.x, target.y);
+        return dist <= range + 20;
+    }
+
+    protected double getLookAngle() {
+        // Engaging in-range target: always face target while attacking.
+        if (isEngagingTarget()) {
+            return Math.atan2(target.y - y, target.x - x);
+        }
+
+        // Moving state: always face movement direction.
+        if (isMoving && (Math.abs(velX) > 0.01 || Math.abs(velY) > 0.01)) {
+            return Math.atan2(velY, velX);
+        }
+
+        // Attack animation fallback.
+        if ((attackEffectTimer > 0 || postAttackDelayTimer > 0) && target != null && target.hp > 0) {
+            return Math.atan2(target.y - y, target.x - x);
+        }
+
+        // Non-attack idle state: alternate left/right.
+        return idleFacingRight ? 0.0 : Math.PI;
+    }
+
+    protected Image loadImage(String path) {
+        try {
+            return javax.imageio.ImageIO.read(getClass().getResource(path));
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }
