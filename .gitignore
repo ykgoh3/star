@@ -2,7 +2,7 @@
 starcraft.iml
 .idea
 out/
-!**/src/main/**/out/
+!**/src/maign/**/out/
 !**/src/test/**/out/
 .kotlin
 
