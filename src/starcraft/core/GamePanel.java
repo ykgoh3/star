@@ -56,7 +56,8 @@ public class GamePanel extends JPanel {
 
             // Keep attack-move target if already assigned (e.g. ally assist).
             if (!u.manualOrder) {
-                boolean noValidTarget = (u.target == null) || (u.target.hp <= 0);
+                boolean targetDead = (u.target != null) && (u.target.hp <= 0);
+                boolean noValidTarget = (u.target == null) || targetDead;
 
                 if (u.autoRetaliating) {
                     if (noValidTarget) {
@@ -86,8 +87,11 @@ public class GamePanel extends JPanel {
                     Unit nearest = findNearestEnemyInRange(u, u.range + 20);
                     if (nearest != null) {
                         u.target = nearest;
+                    } else if (targetDead) {
+                        // Target died and no follow-up target: hold current position.
+                        u.stop();
                     } else {
-                        // Attack-move keeps advancing to destination; auto-engage (dest ~= current) will hold.
+                        // Attack-move issued to ground: keep advancing until destination.
                         double distToDest = vectorMath.getDistance(u.x, u.y, u.destX, u.destY);
                         if (distToDest <= Math.max(4.0, u.size * 0.5)) {
                             u.stop();
