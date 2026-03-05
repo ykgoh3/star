@@ -7,10 +7,16 @@ import starcraft.objects.Unit;
 import java.awt.*;
 
 public class Zergling extends Unit {
+
     public Zergling(int x, int y, int team) {
         super(x, y, team);
-        this.maxHp = 35; this.hp = 350; this.damage = 5;
-        this.attackDelay = 15; this.range = 30; this.speed = 3.5; this.size = 18;
+        this.maxHp = 35;
+        this.hp = 350;
+        this.damage = 5;
+        this.attackDelay = 15;
+        this.range = 30;
+        this.speed = 3.5;
+        this.size = 18;
         this.image = loadImage("/starcraft/res/zergling.png");
     }
 
