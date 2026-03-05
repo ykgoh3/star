@@ -10,6 +10,7 @@ import starcraft.objects.units.Zergling;
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.List;
 
 public class GamePanel extends JPanel {
     private final ArrayList<Unit> units = new ArrayList<>();
@@ -53,9 +54,40 @@ public class GamePanel extends JPanel {
         for (int i = 0; i < units.size(); i++) {
             Unit u = units.get(i);
 
-            // Auto-acquire only nearby enemies. Otherwise keep target null while idle.
+            // Keep attack-move target if already assigned (e.g. ally assist).
             if (!u.manualOrder) {
-                u.target = findNearestEnemyInRange(u, u.range + 20);
+                boolean noValidTarget = (u.target == null) || (u.target.hp <= 0 && u.target.deathTimer <= 290);
+
+                if (u.autoRetaliating) {
+                    if (noValidTarget) {
+                        Unit nearest = findNearestEnemyInRange(u, u.range + 160);
+                        if (nearest != null) {
+                            u.target = nearest;
+                        } else {
+                            u.stop();
+                            u.autoRetaliating = false;
+                        }
+                    }
+                } else if (u.commandState == 0) {
+                    Unit nearest = findNearestEnemyInRange(u, u.range + 20);
+                    u.target = nearest;
+
+                    // Idle auto-engage: switch to attack-move so target can be chased out of range.
+                    if (nearest != null) {
+                        u.commandState = 1;
+                        u.destX = u.x;
+                        u.destY = u.y;
+                    }
+                } else if (u.commandState == 1 && noValidTarget) {
+                    // While chasing, if target dies/disappears, keep fighting nearby enemies.
+                    // If none nearby, hold position here (do not return to old destination).
+                    Unit nearest = findNearestEnemyInRange(u, u.range + 20);
+                    if (nearest != null) {
+                        u.target = nearest;
+                    } else {
+                        u.stop();
+                    }
+                }
             } else if (u.target != null && u.target.hp <= 0 && u.target.deathTimer <= 290) {
                 u.target = null;
                 u.manualOrder = false;
@@ -89,6 +121,10 @@ public class GamePanel extends JPanel {
         }
 
         return closest;
+    }
+
+    public List<Unit> getUnits() {
+        return units;
     }
 
     @Override

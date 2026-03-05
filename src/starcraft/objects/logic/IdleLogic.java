@@ -9,15 +9,14 @@ import java.util.List;
 public class IdleLogic {
     public static void execute(Unit unit, List<Unit> allUnits, TerrainGrid terrain) {
         unit.velX = 0;
-        unit.velY = 0; // 완전 정지
+        unit.velY = 0; // ?熬곣뫗???筌?
 
-        // 사거리 내 적 감지 시 즉시 공격 (말뚝딜)
+        // ???대겳逾??????띠룆흮? ??嶺뚯빖留????ㅻ???(嶺뚮씭큔???
         if (unit.target != null && unit.target.hp > 0) {
             double dist = vectorMath.getDistance(unit.x, unit.y, unit.target.x, unit.target.y);
             if (dist <= unit.range) {
-                if (unit.attackTimer <= 0) unit.attack(null);
             }
         }
-        // [해결] resolveActiveOverlap 호출을 삭제하여 찔끔 밀리는 현상 완벽 제거
+        // [???㏉뜖] resolveActiveOverlap ?筌뤾쑵????????琉우뿰 嶺뚣볥?椰??꾩럾??洹먮맧裕??熬곣뫕留??熬곣몿????蹂ㅽ깴
     }
 }

@@ -24,6 +24,7 @@ public abstract class Unit {
     public int team, size, hp, maxHp, damage, attackDelay, attackTimer;
     public double speed, range;
     public boolean isSelected = false, isMoving = false, manualOrder = false;
+    public boolean autoRetaliating = false;
     public Unit target;
 
     public double lastDistToTarget = 99999;
@@ -160,12 +161,52 @@ public abstract class Unit {
         double dist = vectorMath.getDistance(x, y, target.x, target.y);
         if (dist <= range + 5) {
             target.hp -= damage;
+
+            // Auto-retaliate when taking damage.
+            if (target.hp > 0 && target.team != this.team && canAutoRetaliate(target)) {
+                target.target = this;
+                target.manualOrder = false;
+                target.commandState = 1;
+                target.isMoving = false;
+                target.destX = target.x;
+                target.destY = target.y;
+                target.autoRetaliating = true;
+                alertNearbyAllies(target, panel);
+            }
+
             attackTimer = attackDelay;
 
             postAttackDelayTimer = 8;
             attackEffectTimer = 4;
             target.hitEffectTimer = 4;
         }
+    }
+
+    protected void alertNearbyAllies(Unit damagedUnit, GamePanel panel) {
+        if (panel == null || damagedUnit == null || damagedUnit.hp <= 0) return;
+        if (damagedUnit.team == this.team) return;
+
+        final double helpRange = 140.0;
+        for (Unit ally : panel.getUnits()) {
+            if (ally == null || ally == damagedUnit || ally == this) continue;
+            if (ally.hp <= 0 || ally.team != damagedUnit.team) continue;
+            if (ally.manualOrder) continue;
+            if (!canAutoRetaliate(ally)) continue;
+
+            double d = vectorMath.getDistance(ally.x, ally.y, damagedUnit.x, damagedUnit.y);
+            if (d <= helpRange) {
+                ally.target = this;
+                ally.manualOrder = false;
+                ally.commandState = 1;
+                ally.isMoving = false;
+                ally.destX = ally.x;
+                ally.destY = ally.y;
+                ally.autoRetaliating = true;
+            }
+        }
+    }
+    protected boolean canAutoRetaliate(Unit unit) {
+        return unit != null && unit.hp > 0 && unit.commandState == 0 && !unit.isMoving && !unit.manualOrder;
     }
 
     public Point getNextPathNode(TerrainGrid terrain) {

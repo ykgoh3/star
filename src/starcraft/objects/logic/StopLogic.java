@@ -18,6 +18,7 @@ public class StopLogic {
         unit.bypassSide = 0;
         unit.lastDistToTarget = 99999;
         unit.target = null;
+        unit.autoRetaliating = false;
         // [해결] 정지 시 상태를 대기(0)로 변경하여 자동 공격(말뚝딜)을 허용합니다.
         unit.commandState = 0;
     }
