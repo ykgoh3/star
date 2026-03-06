@@ -1,5 +1,6 @@
 package starcraft.objects.units;
 
+import starcraft.core.GamePanel;
 import starcraft.engine.RenderUtils;
 import starcraft.objects.Unit;
 
@@ -20,21 +21,34 @@ public class SCV extends Unit {
     }
 
     @Override
-    protected void drawAttackEffect(Graphics g, double lookAngle) {
-        if (attackEffectTimer > 0) {
-            int sparkX = (int) (x + Math.cos(lookAngle) * (size * 0.75));
-            int sparkY = (int) (y + Math.sin(lookAngle) * (size * 0.75));
+    public void attack(GamePanel panel) {
+        int prevHp = (target != null) ? target.hp : 0;
+        super.attack(panel);
 
-            g.setColor(new Color(255, 230, 140));
-            g.fillOval(sparkX - 2, sparkY - 2, 4, 4);
+        if (target != null && target.hp < prevHp) {
+            target.hitEffectColor = new Color(255, 230, 150);
+            target.hitEffectStyle = 2;
+            target.hitEffectTimer = 4;
         }
+    }
+
+    @Override
+    protected void drawAttackEffect(Graphics g, double lookAngle) {
+        // SCV has no separate projectile/attack draw effect.
     }
 
     @Override
     public void draw(Graphics g) {
         if (hp <= 0) {
-            g.setColor(new Color(120, 80, 60, 150));
-            g.fillOval((int) x - 10, (int) y - 5, 20, 10);
+            // One-shot death burst only. No persistent blood stain.
+            if (deathTimer > 292) {
+                int t = deathTimer - 292;
+                int radius = 18 - t;
+                g.setColor(new Color(255, 200, 90, 180));
+                g.fillOval((int) x - radius / 2, (int) y - radius / 2, radius, radius);
+                g.setColor(new Color(255, 140, 60, 200));
+                g.fillOval((int) x - radius / 3, (int) y - radius / 3, radius / 2, radius / 2);
+            }
             return;
         }
 
@@ -49,7 +63,6 @@ public class SCV extends Unit {
             g.fillOval((int) x - size / 2, (int) y - size / 2, size, size);
         }
 
-        drawAttackEffect(g, lookAngle);
         drawHitEffect(g);
         drawHealthBar(g);
     }

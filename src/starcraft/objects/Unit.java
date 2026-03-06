@@ -48,6 +48,8 @@ public abstract class Unit {
 
     protected int attackEffectTimer = 0;
     public int hitEffectTimer = 0;
+    public Color hitEffectColor = new Color(255, 255, 150);
+    public int hitEffectStyle = 0; // 0: ring, 1: thin diagonal slash, 2: welding sparks
     public Image image;
 
     // Idle look switching state (left/right only)
@@ -181,6 +183,8 @@ public abstract class Unit {
 
             postAttackDelayTimer = 8;
             attackEffectTimer = 4;
+            target.hitEffectColor = new Color(255, 255, 150);
+            target.hitEffectStyle = 0;
             target.hitEffectTimer = 4;
         }
     }
@@ -208,6 +212,7 @@ public abstract class Unit {
             }
         }
     }
+
     protected boolean canAutoRetaliate(Unit unit) {
         return unit != null && unit.hp > 0 && unit.commandState == 0 && !unit.isMoving && !unit.manualOrder;
     }
@@ -254,13 +259,52 @@ public abstract class Unit {
     protected abstract void drawAttackEffect(Graphics g, double lookAngle);
 
     protected void drawHitEffect(Graphics g) {
-        if (hitEffectTimer > 0) {
-            g.setColor(new Color(255, 255, 150));
-            int innerSize = 6;
-            int outerSize = 10;
-            g.drawOval((int) x - innerSize / 2, (int) y - innerSize / 2, innerSize, innerSize);
-            g.drawOval((int) x - outerSize / 2, (int) y - outerSize / 2, outerSize, outerSize);
+        if (hitEffectTimer <= 0) return;
+
+        Color effect = (hitEffectColor != null) ? hitEffectColor : new Color(255, 255, 150);
+        Graphics2D g2 = (Graphics2D) g;
+
+        if (hitEffectStyle == 1) {
+            Stroke oldStroke = g2.getStroke();
+            g2.setColor(effect);
+            g2.setStroke(new BasicStroke(1f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawLine((int) x - 6, (int) y + 5, (int) x + 6, (int) y - 5);
+            g2.drawLine((int) x - 4, (int) y + 7, (int) x + 8, (int) y - 3);
+            g2.drawLine((int) x - 8, (int) y + 3, (int) x + 4, (int) y - 7);
+            g2.setStroke(oldStroke);
+            return;
         }
+
+        if (hitEffectStyle == 2) {
+            Stroke oldStroke = g2.getStroke();
+            g2.setColor(effect);
+            g2.setStroke(new BasicStroke(0.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            // Fountain-like spray: multiple thin streaks bursting outward.
+            int rays = 9;
+            for (int i = 0; i < rays; i++) {
+                double t = (i - (rays - 1) * 0.5) / ((rays - 1) * 0.5);
+                double baseAngle = -Math.PI / 2.0 + t * (Math.PI / 2.5);
+                double sway = Math.sin((hitEffectTimer + i) * 1.7) * 0.08;
+                double angle = baseAngle + sway;
+
+                int len = 7 + (i % 4);
+                int sx = (int) (x + Math.cos(angle) * 2);
+                int sy = (int) (y + Math.sin(angle) * 2);
+                int ex = (int) (x + Math.cos(angle) * len);
+                int ey = (int) (y + Math.sin(angle) * len);
+                g2.drawLine(sx, sy, ex, ey);
+            }
+
+            g2.setStroke(oldStroke);
+            return;
+        }
+
+        g2.setColor(effect);
+        int innerSize = 6;
+        int outerSize = 10;
+        g2.drawOval((int) x - innerSize / 2, (int) y - innerSize / 2, innerSize, innerSize);
+        g2.drawOval((int) x - outerSize / 2, (int) y - outerSize / 2, outerSize, outerSize);
     }
 
     protected void drawHealthBar(Graphics g) {

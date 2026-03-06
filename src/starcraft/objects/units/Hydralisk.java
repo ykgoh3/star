@@ -1,9 +1,11 @@
 package starcraft.objects.units;
 
+import starcraft.core.GamePanel;
 import starcraft.engine.RenderUtils;
 import starcraft.objects.Unit;
 
 import java.awt.*;
+import java.awt.geom.QuadCurve2D;
 
 public class Hydralisk extends Unit {
 
@@ -20,13 +22,53 @@ public class Hydralisk extends Unit {
     }
 
     @Override
+    public void attack(GamePanel panel) {
+        int prevHp = (target != null) ? target.hp : 0;
+        super.attack(panel);
+
+        if (target != null && target.hp < prevHp) {
+            target.hitEffectColor = new Color(110, 255, 120);
+            target.hitEffectStyle = 1;
+            target.hitEffectTimer = 4;
+        }
+    }
+
+    @Override
     protected void drawAttackEffect(Graphics g, double lookAngle) {
         if (attackEffectTimer > 0) {
-            int spikeX = (int) (x + Math.cos(lookAngle) * (size * 0.9));
-            int spikeY = (int) (y + Math.sin(lookAngle) * (size * 0.9));
+            Graphics2D g2 = (Graphics2D) g;
+            Stroke oldStroke = g2.getStroke();
 
-            g.setColor(new Color(180, 255, 120));
-            g.fillOval(spikeX - 2, spikeY - 2, 5, 5);
+            double sx = x + Math.cos(lookAngle) * (size * 0.45);
+            double sy = y + Math.sin(lookAngle) * (size * 0.45);
+            double ex = x + Math.cos(lookAngle) * (size * 1.75);
+            double ey = y + Math.sin(lookAngle) * (size * 1.75);
+
+            double mx = (sx + ex) * 0.5;
+            double my = (sy + ey) * 0.5;
+            double nx = -Math.sin(lookAngle);
+            double ny = Math.cos(lookAngle);
+            double bend = 3.0;
+
+            QuadCurve2D curve = new QuadCurve2D.Double(
+                    sx, sy,
+                    mx + nx * bend, my + ny * bend,
+                    ex, ey
+            );
+
+            g2.setColor(new Color(110, 255, 120));
+            g2.setStroke(new BasicStroke(1.1f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.draw(curve);
+
+            int tipX = (int) ex;
+            int tipY = (int) ey;
+            int tipX2 = (int) (ex - Math.cos(lookAngle - 0.22) * 4);
+            int tipY2 = (int) (ey - Math.sin(lookAngle - 0.22) * 4);
+            int tipX3 = (int) (ex - Math.cos(lookAngle + 0.22) * 4);
+            int tipY3 = (int) (ey - Math.sin(lookAngle + 0.22) * 4);
+            g2.fillPolygon(new int[]{tipX, tipX2, tipX3}, new int[]{tipY, tipY2, tipY3}, 3);
+
+            g2.setStroke(oldStroke);
         }
     }
 
