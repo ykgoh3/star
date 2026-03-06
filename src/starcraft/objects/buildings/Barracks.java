@@ -8,7 +8,8 @@ import java.awt.*;
 public class Barracks extends UnitFactoryBuilding {
 
     public Barracks(int x, int y, int team) {
-        super(x, y, team, 56, 48, 1000, 30, 20, 14);
+        super(x, y, team, 90, 66, 1000, 30, 20, 14);
+        this.image = loadImage("/starcraft/res/barracks.png");
     }
 
     @Override
@@ -24,15 +25,19 @@ public class Barracks extends UnitFactoryBuilding {
         g.setColor(new Color(0, 0, 0, 90));
         g.fillRect(drawX + 3, drawY + 4, width, height);
 
-        g.setColor(team == 0 ? new Color(70, 110, 230) : new Color(170, 70, 70));
-        g.fillRect(drawX, drawY, width, height);
+        if (image != null) {
+            g.drawImage(image, drawX, drawY, width, height, null);
+        } else {
+            g.setColor(team == 0 ? new Color(70, 110, 230) : new Color(170, 70, 70));
+            g.fillRect(drawX, drawY, width, height);
 
-        g.setColor(new Color(40, 40, 40));
-        g.drawRect(drawX, drawY, width, height);
+            g.setColor(new Color(40, 40, 40));
+            g.drawRect(drawX, drawY, width, height);
 
-        g.setColor(new Color(220, 220, 220));
-        g.drawLine(drawX + 10, drawY + 8, drawX + width - 10, drawY + 8);
-        g.drawLine(drawX + 10, drawY + 16, drawX + width - 10, drawY + 16);
+            g.setColor(new Color(220, 220, 220));
+            g.drawLine(drawX + 10, drawY + 8, drawX + width - 10, drawY + 8);
+            g.drawLine(drawX + 10, drawY + 16, drawX + width - 10, drawY + 16);
+        }
 
         int progressWidth = (int) ((width - 8) * getProductionProgress());
         g.setColor(new Color(40, 40, 40));

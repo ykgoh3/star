@@ -12,6 +12,7 @@ public abstract class Building {
     protected double y;
     protected int hp;
     protected int maxHp;
+    protected Image image;
 
     protected Building(double x, double y, int team, int width, int height, int maxHp) {
         this.x = x;
@@ -49,6 +50,14 @@ public abstract class Building {
 
     public boolean isDestroyed() {
         return hp <= 0;
+    }
+
+    protected Image loadImage(String path) {
+        try {
+            return javax.imageio.ImageIO.read(getClass().getResource(path));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public abstract void update(GamePanel panel);

@@ -29,7 +29,6 @@ public class GamePanel extends JPanel {
         addMouseMotionListener(inputHandler);
 
         buildings.add(new Barracks(110, 110, 0));
-        buildings.add(new Barracks(690, 490, 1));
 
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 4; col++) {
