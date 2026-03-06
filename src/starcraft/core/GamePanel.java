@@ -55,10 +55,10 @@ public class GamePanel extends JPanel {
             Unit u = units.get(i);
 
             // Keep attack-move target if already assigned (e.g. ally assist).
-            boolean targetDead = (u.target != null && u.target.hp <= 0);
-            boolean noValidTarget = (u.target == null) || targetDead;
-
             if (!u.manualOrder) {
+                boolean targetDead = (u.target != null) && (u.target.hp <= 0);
+                boolean noValidTarget = (u.target == null) || targetDead;
+
                 if (u.autoRetaliating) {
                     if (noValidTarget) {
                         Unit nearest = findNearestEnemyInRange(u, u.range + 200);
@@ -84,13 +84,12 @@ public class GamePanel extends JPanel {
                         u.destY = u.y;
                     }
                 } else if (u.commandState == 1 && noValidTarget) {
-                    if (targetDead) {
-                        Unit nearest = findNearestEnemyInRange(u, u.range + 20);
-                        if (nearest != null) {
-                            u.target = nearest;
-                        } else {
-                            u.stop();
-                        }
+                    Unit nearest = findNearestEnemyInRange(u, u.range + 20);
+                    if (nearest != null) {
+                        u.target = nearest;
+                    } else if (targetDead) {
+                        // Target died and no follow-up target: hold current position.
+                        u.stop();
                     } else {
                         // Attack-move issued to ground: keep advancing until destination.
                         double distToDest = vectorMath.getDistance(u.x, u.y, u.destX, u.destY);
@@ -101,15 +100,7 @@ public class GamePanel extends JPanel {
                         }
                     }
                 }
-            } else if (u.commandState == 1 && noValidTarget) {
-                // Manual chase: when target dies, retarget nearby; if none, hold current position.
-                Unit nearest = findNearestEnemyInRange(u, u.range + 20);
-                if (nearest != null) {
-                    u.target = nearest;
-                } else {
-                    u.stop();
-                }
-            } else if (targetDead) {
+            } else if (u.target != null && u.target.hp <= 0) {
                 u.target = null;
             }
 
