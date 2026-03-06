@@ -62,8 +62,11 @@ public class InputHandler extends MouseAdapter implements KeyListener {
             return;
         }
 
-        Unit clickedUnit = findClickedUnit(e.getX(), e.getY());
-        Building clickedBuilding = panel.findBuildingAt(e.getX(), e.getY());
+        int worldX = panel.screenToWorldX(e.getX());
+        int worldY = panel.screenToWorldY(e.getY());
+
+        Unit clickedUnit = findClickedUnit(worldX, worldY);
+        Building clickedBuilding = panel.findBuildingAtWorld(worldX, worldY);
 
         if (e.getButton() == MouseEvent.BUTTON1) {
             if (aKeyPressed) {
@@ -75,10 +78,10 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                         u.target = clickedUnit;
                         u.manualOrder = true;
                     } else {
-                        u.destX = e.getX();
-                        u.destY = e.getY();
-                        u.targetX = e.getX();
-                        u.targetY = e.getY();
+                        u.destX = worldX;
+                        u.destY = worldY;
+                        u.targetX = worldX;
+                        u.targetY = worldY;
                         u.commandState = 1;
                         u.target = null;
                         u.manualOrder = false;
@@ -96,8 +99,8 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                     endPoint = null;
                 } else {
                     panel.clearBuildingSelection();
-                    startPoint = e.getPoint();
-                    endPoint = e.getPoint();
+                    startPoint = new Point(worldX, worldY);
+                    endPoint = new Point(worldX, worldY);
                     isDragging = true;
                 }
             }
@@ -111,10 +114,10 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                     u.target = clickedUnit;
                     u.manualOrder = true;
                 } else {
-                    u.destX = e.getX();
-                    u.destY = e.getY();
-                    u.targetX = e.getX();
-                    u.targetY = e.getY();
+                    u.destX = worldX;
+                    u.destY = worldY;
+                    u.targetX = worldX;
+                    u.targetY = worldY;
                     u.commandState = 2;
                     u.target = null;
                     u.manualOrder = false;
@@ -126,10 +129,10 @@ public class InputHandler extends MouseAdapter implements KeyListener {
         panel.repaint();
     }
 
-    private Unit findClickedUnit(int x, int y) {
+    private Unit findClickedUnit(int worldX, int worldY) {
         for (Unit u : units) {
             if (u.hp <= 0) continue;
-            double dist = vectorMath.getDistance(x, y, u.x, u.y);
+            double dist = vectorMath.getDistance(worldX, worldY, u.x, u.y);
             if (dist <= u.size) {
                 return u;
             }
@@ -151,8 +154,10 @@ public class InputHandler extends MouseAdapter implements KeyListener {
     @Override
     public void mouseDragged(MouseEvent e) {
         if (isDragging) {
-            int clampedY = Math.min(e.getY(), panel.getUiBarTop() - 1);
-            endPoint = new Point(e.getX(), Math.max(0, clampedY));
+            int clampedScreenY = Math.min(e.getY(), panel.getUiBarTop() - 1);
+            int worldX = panel.screenToWorldX(e.getX());
+            int worldY = panel.screenToWorldY(Math.max(0, clampedScreenY));
+            endPoint = new Point(worldX, worldY);
         }
         panel.repaint();
     }
