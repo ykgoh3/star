@@ -3,6 +3,8 @@ package starcraft.core;
 import starcraft.engine.InputHandler;
 import starcraft.engine.vectorMath;
 import starcraft.objects.Unit;
+import starcraft.objects.buildings.Barracks;
+import starcraft.objects.buildings.Building;
 import starcraft.objects.units.Hydralisk;
 import starcraft.objects.units.Marine;
 import starcraft.objects.units.Zergling;
@@ -14,6 +16,7 @@ import java.util.List;
 
 public class GamePanel extends JPanel {
     private final ArrayList<Unit> units = new ArrayList<>();
+    private final ArrayList<Building> buildings = new ArrayList<>();
     private InputHandler inputHandler;
     private TerrainGrid terrain;
     private Timer gameLoop;
@@ -24,6 +27,9 @@ public class GamePanel extends JPanel {
         inputHandler = new InputHandler(this, units);
         addMouseListener(inputHandler);
         addMouseMotionListener(inputHandler);
+
+        buildings.add(new Barracks(110, 110, 0));
+        buildings.add(new Barracks(690, 490, 1));
 
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 4; col++) {
@@ -46,11 +52,19 @@ public class GamePanel extends JPanel {
             }
         }
 
+        refreshBuildingBlockers();
+
         gameLoop = new Timer(33, e -> updateGame());
         gameLoop.start();
     }
 
     private void updateGame() {
+        refreshBuildingBlockers();
+
+        for (Building building : buildings) {
+            building.update(this);
+        }
+
         for (int i = 0; i < units.size(); i++) {
             Unit u = units.get(i);
 
@@ -117,6 +131,20 @@ public class GamePanel extends JPanel {
         repaint();
     }
 
+    private void refreshBuildingBlockers() {
+        terrain.clearBlocked();
+        for (Building building : buildings) {
+            if (building.isDestroyed()) continue;
+            terrain.blockRectWorld(
+                    building.getX(),
+                    building.getY(),
+                    building.getWidth(),
+                    building.getHeight(),
+                    building.getPathingPadding()
+            );
+        }
+    }
+
     private Unit findNearestEnemyInRange(Unit me, double maxRange) {
         Unit closest = null;
         double minDist = maxRange;
@@ -138,9 +166,21 @@ public class GamePanel extends JPanel {
         return units;
     }
 
+    public List<Building> getBuildings() {
+        return buildings;
+    }
+
+    public TerrainGrid getTerrain() {
+        return terrain;
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+
+        for (Building building : buildings) {
+            building.draw(g);
+        }
 
         units.sort((u1, u2) -> Double.compare(u1.y, u2.y));
 
