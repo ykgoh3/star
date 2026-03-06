@@ -5,6 +5,7 @@ import starcraft.engine.vectorMath;
 import starcraft.objects.Unit;
 import starcraft.objects.buildings.Barracks;
 import starcraft.objects.buildings.Building;
+import starcraft.objects.buildings.CommandCenter;
 import starcraft.objects.units.Hydralisk;
 import starcraft.objects.units.Marine;
 import starcraft.objects.units.Zergling;
@@ -43,6 +44,7 @@ public class GamePanel extends JPanel {
         addMouseListener(inputHandler);
         addMouseMotionListener(inputHandler);
 
+        buildings.add(new CommandCenter(50,200,0));
         buildings.add(new Barracks(110, 110, 0));
 
         for (int row = 0; row < 3; row++) {
