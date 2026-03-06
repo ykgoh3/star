@@ -54,6 +54,14 @@ public class InputHandler extends MouseAdapter implements KeyListener {
             return;
         }
 
+        if (panel.isInUiArea(e.getX(), e.getY())) {
+            isDragging = false;
+            startPoint = null;
+            endPoint = null;
+            panel.repaint();
+            return;
+        }
+
         Unit clickedUnit = findClickedUnit(e.getX(), e.getY());
         Building clickedBuilding = panel.findBuildingAt(e.getX(), e.getY());
 
@@ -142,7 +150,10 @@ public class InputHandler extends MouseAdapter implements KeyListener {
 
     @Override
     public void mouseDragged(MouseEvent e) {
-        if (isDragging) endPoint = e.getPoint();
+        if (isDragging) {
+            int clampedY = Math.min(e.getY(), panel.getUiBarTop() - 1);
+            endPoint = new Point(e.getX(), Math.max(0, clampedY));
+        }
         panel.repaint();
     }
 
@@ -195,7 +206,9 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                 if (u.team == 0 && dragRect.intersects(unitRect)) {
                     u.isSelected = true;
                     friendFound = true;
-                } else u.isSelected = false;
+                } else {
+                    u.isSelected = false;
+                }
             }
             if (!friendFound) {
                 for (Unit u : units) {
