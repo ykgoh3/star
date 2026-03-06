@@ -387,14 +387,30 @@ public class GamePanel extends JPanel {
         return false;
     }
 
-    private Rectangle getMarineButtonBounds() {
+    private Rectangle getControlCellBounds(int col, int row) {
         Rectangle control = getControlPanelRect();
-        return new Rectangle(control.x + 12, control.y + control.height / 2 - 14, control.width - 24, 30);
+
+        int gridX = control.x + 1;
+        int gridY = control.y + 1;
+        int gridW = Math.max(0, control.width - 2);
+        int gridH = Math.max(0, control.height - 2);
+
+        int cellW = gridW / 3;
+        int cellH = gridH / 3;
+
+        int x = gridX + col * cellW + 2;
+        int y = gridY + row * cellH + 2;
+        int w = Math.max(0, cellW - 4);
+        int h = Math.max(0, cellH - 4);
+        return new Rectangle(x, y, w, h);
+    }
+
+    private Rectangle getMarineButtonBounds() {
+        return getControlCellBounds(0, 0);
     }
 
     private Rectangle getScvButtonBounds() {
-        Rectangle control = getControlPanelRect();
-        return new Rectangle(control.x + 12, control.y + control.height / 2 - 14, control.width - 24, 30);
+        return getControlCellBounds(0, 0);
     }
 
     private void drawTopRightResources(Graphics g) {
@@ -405,6 +421,29 @@ public class GamePanel extends JPanel {
         g.drawRect(r.x, r.y, r.width, r.height);
         g.setColor(Color.WHITE);
         g.drawString("Minerals: " + getMinerals(0) + "   Gas: 0", r.x + 12, r.y + 21);
+    }
+
+    private void drawUnitControlGrid(Graphics g, Rectangle control) {
+        int gridX = control.x + 1;
+        int gridY = control.y + 1;
+        int gridW = Math.max(0, control.width - 2);
+        int gridH = Math.max(0, control.height - 2);
+
+        if (gridW <= 0 || gridH <= 0) return;
+
+        int cellW = gridW / 3;
+        int cellH = gridH / 3;
+
+        g.setColor(new Color(36, 36, 36));
+        g.fillRect(gridX, gridY, gridW, gridH);
+        g.setColor(new Color(120, 120, 120));
+
+        for (int i = 1; i < 3; i++) {
+            int x = gridX + cellW * i;
+            int y = gridY + cellH * i;
+            g.drawLine(x, gridY, x, gridY + gridH);
+            g.drawLine(gridX, y, gridX + gridW, y);
+        }
     }
 
     private void drawBottomUiBar(Graphics g) {
@@ -444,23 +483,22 @@ public class GamePanel extends JPanel {
         g.fillRect(control.x, control.y, control.width, control.height);
         g.setColor(new Color(120, 120, 120));
         g.drawRect(control.x, control.y, control.width, control.height);
-        g.setColor(Color.WHITE);
-        g.drawString("Control", control.x + 12, control.y + 20);
+        drawUnitControlGrid(g, control);
 
         if (selectedBuilding instanceof Barracks) {
-            Rectangle marineButton = getMarineButtonBounds();
+            Rectangle cell = getMarineButtonBounds();
             g.setColor(new Color(60, 90, 180));
-            g.fillRect(marineButton.x, marineButton.y, marineButton.width, marineButton.height);
+            g.fillRect(cell.x, cell.y, cell.width, cell.height);
             g.setColor(Color.WHITE);
-            g.drawRect(marineButton.x, marineButton.y, marineButton.width, marineButton.height);
-            g.drawString("Train Marine", marineButton.x + 36, marineButton.y + 20);
+            g.drawRect(cell.x, cell.y, cell.width, cell.height);
+            g.drawString("Marine", cell.x + 6, cell.y + Math.max(14, cell.height / 2 + 4));
         } else if (selectedBuilding instanceof CommandCenter) {
-            Rectangle scvButton = getScvButtonBounds();
+            Rectangle cell = getScvButtonBounds();
             g.setColor(new Color(60, 140, 180));
-            g.fillRect(scvButton.x, scvButton.y, scvButton.width, scvButton.height);
+            g.fillRect(cell.x, cell.y, cell.width, cell.height);
             g.setColor(Color.WHITE);
-            g.drawRect(scvButton.x, scvButton.y, scvButton.width, scvButton.height);
-            g.drawString("Train SCV", scvButton.x + 46, scvButton.y + 20);
+            g.drawRect(cell.x, cell.y, cell.width, cell.height);
+            g.drawString("SCV", cell.x + 10, cell.y + Math.max(14, cell.height / 2 + 4));
         }
     }
 
@@ -517,4 +555,5 @@ public class GamePanel extends JPanel {
         drawBottomUiBar(g);
     }
 }
+
 
