@@ -1,7 +1,7 @@
 package starcraft.objects.buildings;
 
 import starcraft.objects.Unit;
-import starcraft.objects.units.Marine;
+import starcraft.objects.units.SCV;
 
 import java.awt.*;
 
@@ -12,14 +12,14 @@ public class CommandCenter extends UnitFactoryBuilding {
         this.image = loadImage("/starcraft/res/command_center.png");
     }
 
-    // Placeholder worker production until a dedicated worker unit is added.
+    // Worker production queue.
     public void enqueueWorker() {
         enqueueUnit();
     }
 
     @Override
     protected Unit createUnit(int x, int y, int team) {
-        return new Marine(x, y, team);
+        return new SCV(x, y, team);
     }
 
     @Override

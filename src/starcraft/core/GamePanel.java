@@ -8,6 +8,7 @@ import starcraft.objects.buildings.Building;
 import starcraft.objects.buildings.CommandCenter;
 import starcraft.objects.units.Hydralisk;
 import starcraft.objects.units.Marine;
+import starcraft.objects.units.SCV;
 import starcraft.objects.units.Zergling;
 
 import javax.swing.*;
@@ -46,6 +47,8 @@ public class GamePanel extends JPanel {
 
         buildings.add(new CommandCenter(50,200,0));
         buildings.add(new Barracks(110, 110, 0));
+
+        units.add(new SCV(50,300,0));
 
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 4; col++) {
