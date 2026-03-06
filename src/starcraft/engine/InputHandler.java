@@ -1,9 +1,11 @@
 package starcraft.engine;
 
 import starcraft.core.GamePanel;
-import starcraft.objects.logic.StopLogic;
 import starcraft.objects.Unit;
 import starcraft.objects.buildings.Building;
+import starcraft.objects.logic.StopLogic;
+import starcraft.objects.resources.MineralPatch;
+import starcraft.objects.units.SCV;
 
 import java.awt.*;
 import java.awt.event.KeyEvent;
@@ -67,6 +69,7 @@ public class InputHandler extends MouseAdapter implements KeyListener {
 
         Unit clickedUnit = findClickedUnit(worldX, worldY);
         Building clickedBuilding = panel.findBuildingAtWorld(worldX, worldY);
+        MineralPatch clickedMineral = panel.findMineralAtWorld(worldX, worldY);
 
         if (e.getButton() == MouseEvent.BUTTON1) {
             if (aKeyPressed) {
@@ -109,6 +112,16 @@ public class InputHandler extends MouseAdapter implements KeyListener {
             for (Unit u : units) {
                 if (!u.isSelected) continue;
                 u.isMoving = true;
+
+                if (u instanceof SCV scv && clickedMineral != null) {
+                    scv.startMining(clickedMineral, panel.findNearestCommandCenter(scv.x, scv.y, scv.team));
+                    continue;
+                }
+
+                if (u instanceof SCV scv) {
+                    scv.clearHarvestOrder();
+                }
+
                 if (clickedUnit != null && clickedUnit.team != u.team) {
                     u.commandState = 1;
                     u.target = clickedUnit;

@@ -6,6 +6,7 @@ import starcraft.objects.Unit;
 import starcraft.objects.buildings.Barracks;
 import starcraft.objects.buildings.Building;
 import starcraft.objects.buildings.CommandCenter;
+import starcraft.objects.resources.MineralPatch;
 import starcraft.objects.units.Hydralisk;
 import starcraft.objects.units.Marine;
 import starcraft.objects.units.SCV;
@@ -28,6 +29,7 @@ public class GamePanel extends JPanel {
 
     private final ArrayList<Unit> units = new ArrayList<>();
     private final ArrayList<Building> buildings = new ArrayList<>();
+    private final ArrayList<MineralPatch> mineralPatches = new ArrayList<>();
     private final InputHandler inputHandler;
     private final TerrainGrid terrain;
     private final Timer gameLoop;
@@ -35,6 +37,7 @@ public class GamePanel extends JPanel {
     private Building selectedBuilding;
     private int cameraX = 0;
     private int cameraY = 0;
+    private final int[] minerals = new int[]{50, 50};
     private final Robot mouseLockRobot;
     private boolean mouseLockEnabled = true;
 
@@ -45,10 +48,15 @@ public class GamePanel extends JPanel {
         addMouseListener(inputHandler);
         addMouseMotionListener(inputHandler);
 
-        buildings.add(new CommandCenter(50,200,0));
+        buildings.add(new CommandCenter(50, 200, 0));
         buildings.add(new Barracks(110, 110, 0));
 
-        units.add(new SCV(50,300,0));
+        mineralPatches.add(new MineralPatch(180, 250, 1500));
+        mineralPatches.add(new MineralPatch(220, 280, 1500));
+        mineralPatches.add(new MineralPatch(260, 250, 1500));
+        mineralPatches.add(new MineralPatch(220, 220, 1500));
+
+        units.add(new SCV(50, 300, 0));
 
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 4; col++) {
@@ -141,6 +149,10 @@ public class GamePanel extends JPanel {
                 continue;
             }
 
+            if (u instanceof SCV scv) {
+                scv.updateHarvest(this);
+            }
+
             u.update(units, terrain);
             u.attack(this);
         }
@@ -152,7 +164,7 @@ public class GamePanel extends JPanel {
     private void updateCameraFromMouse() {
         Point mouse = getMousePosition();
         if (mouse == null) return;
-        
+
         if (mouse.x <= EDGE_SCROLL_THRESHOLD) {
             cameraX -= EDGE_SCROLL_SPEED;
         } else if (mouse.x >= getWidth() - EDGE_SCROLL_THRESHOLD) {
@@ -210,6 +222,7 @@ public class GamePanel extends JPanel {
             mouseLockRobot.mouseMove(clampedX, clampedY);
         }
     }
+
     private void refreshBuildingBlockers() {
         terrain.clearBlocked();
         for (Building building : buildings) {
@@ -217,8 +230,8 @@ public class GamePanel extends JPanel {
             terrain.blockRectWorld(
                     building.getX(),
                     building.getY(),
-                    building.getWidth(),
-                    building.getHeight(),
+                    building.getPathingBlockWidth(),
+                    building.getPathingBlockHeight(),
                     building.getPathingPadding()
             );
         }
@@ -300,6 +313,52 @@ public class GamePanel extends JPanel {
         return null;
     }
 
+    public MineralPatch findMineralAtWorld(int worldX, int worldY) {
+        for (int i = mineralPatches.size() - 1; i >= 0; i--) {
+            MineralPatch patch = mineralPatches.get(i);
+            if (!patch.isDepleted() && patch.contains(worldX, worldY)) {
+                return patch;
+            }
+        }
+        return null;
+    }
+
+    public CommandCenter findNearestCommandCenter(double worldX, double worldY, int team) {
+        CommandCenter nearest = null;
+        double minDistSq = Double.MAX_VALUE;
+
+        for (Building building : buildings) {
+            if (!(building instanceof CommandCenter center)) continue;
+            if (center.isDestroyed() || center.getTeam() != team) continue;
+
+            double dx = center.getX() - worldX;
+            double dy = center.getY() - worldY;
+            double distSq = dx * dx + dy * dy;
+            if (distSq < minDistSq) {
+                minDistSq = distSq;
+                nearest = center;
+            }
+        }
+        return nearest;
+    }
+
+    public int getMinerals(int team) {
+        if (team < 0 || team >= minerals.length) return 0;
+        return minerals[team];
+    }
+
+    public void addMinerals(int team, int amount) {
+        if (team < 0 || team >= minerals.length || amount <= 0) return;
+        minerals[team] += amount;
+    }
+
+    public boolean spendMinerals(int team, int amount) {
+        if (team < 0 || team >= minerals.length || amount < 0) return false;
+        if (minerals[team] < amount) return false;
+        minerals[team] -= amount;
+        return true;
+    }
+
     public void selectBuilding(Building building) {
         this.selectedBuilding = building;
     }
@@ -310,17 +369,30 @@ public class GamePanel extends JPanel {
 
     public boolean handleUiLeftClick(int mouseX, int mouseY) {
         if (!isInUiArea(mouseX, mouseY)) return false;
-        if (!(selectedBuilding instanceof Barracks barracks)) return false;
 
-        Rectangle marineButton = getMarineButtonBounds();
-        if (marineButton.contains(mouseX, mouseY)) {
-            barracks.enqueueMarine();
-            return true;
+        if (selectedBuilding instanceof Barracks barracks) {
+            Rectangle marineButton = getMarineButtonBounds();
+            if (marineButton.contains(mouseX, mouseY) && spendMinerals(0, 50)) {
+                barracks.enqueueMarine();
+                return true;
+            }
+        } else if (selectedBuilding instanceof CommandCenter center) {
+            Rectangle scvButton = getScvButtonBounds();
+            if (scvButton.contains(mouseX, mouseY) && spendMinerals(0, 50)) {
+                center.enqueueWorker();
+                return true;
+            }
         }
+
         return false;
     }
 
     private Rectangle getMarineButtonBounds() {
+        Rectangle control = getControlPanelRect();
+        return new Rectangle(control.x + 12, control.y + control.height / 2 - 14, control.width - 24, 30);
+    }
+
+    private Rectangle getScvButtonBounds() {
         Rectangle control = getControlPanelRect();
         return new Rectangle(control.x + 12, control.y + control.height / 2 - 14, control.width - 24, 30);
     }
@@ -332,7 +404,7 @@ public class GamePanel extends JPanel {
         g.setColor(new Color(140, 140, 140));
         g.drawRect(r.x, r.y, r.width, r.height);
         g.setColor(Color.WHITE);
-        g.drawString("Minerals: 0   Gas: 0", r.x + 12, r.y + 21);
+        g.drawString("Minerals: " + getMinerals(0) + "   Gas: 0", r.x + 12, r.y + 21);
     }
 
     private void drawBottomUiBar(Graphics g) {
@@ -359,6 +431,9 @@ public class GamePanel extends JPanel {
         if (selectedBuilding instanceof Barracks barracks) {
             g.drawString("Barracks", status.x + 12, status.y + 20);
             g.drawString("Queue: " + barracks.getQueuedUnits(), status.x + 12, status.y + 40);
+        } else if (selectedBuilding instanceof CommandCenter center) {
+            g.drawString("Command Center", status.x + 12, status.y + 20);
+            g.drawString("Queue: " + center.getQueuedUnits(), status.x + 12, status.y + 40);
         } else {
             g.drawString("Status", status.x + 12, status.y + 20);
             g.drawString("Select unit/building", status.x + 12, status.y + 40);
@@ -379,6 +454,13 @@ public class GamePanel extends JPanel {
             g.setColor(Color.WHITE);
             g.drawRect(marineButton.x, marineButton.y, marineButton.width, marineButton.height);
             g.drawString("Train Marine", marineButton.x + 36, marineButton.y + 20);
+        } else if (selectedBuilding instanceof CommandCenter) {
+            Rectangle scvButton = getScvButtonBounds();
+            g.setColor(new Color(60, 140, 180));
+            g.fillRect(scvButton.x, scvButton.y, scvButton.width, scvButton.height);
+            g.setColor(Color.WHITE);
+            g.drawRect(scvButton.x, scvButton.y, scvButton.width, scvButton.height);
+            g.drawString("Train SCV", scvButton.x + 46, scvButton.y + 20);
         }
     }
 
@@ -401,6 +483,10 @@ public class GamePanel extends JPanel {
         Graphics2D gWorld = (Graphics2D) g.create();
         gWorld.setClip(0, 0, getWidth(), getUiBarTop());
         gWorld.translate(-cameraX, -cameraY);
+
+        for (MineralPatch patch : mineralPatches) {
+            patch.draw(gWorld);
+        }
 
         for (Building building : buildings) {
             building.draw(gWorld);
@@ -431,3 +517,4 @@ public class GamePanel extends JPanel {
         drawBottomUiBar(g);
     }
 }
+

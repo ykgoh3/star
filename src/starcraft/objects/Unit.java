@@ -144,10 +144,12 @@ public abstract class Unit {
                     (int) ((nextY + Math.sin(ang) * r) / terrain.cellSize))) return false;
         }
 
-        for (Unit other : allUnits) {
-            if (other == this || other.hp <= 0) continue;
-            if (!other.isMoving || other.attackTimer > 0) {
-                if (vectorMath.getDistance(nextX, nextY, other.x, other.y) < (size + other.size) * 0.48) return false;
+        if (!canPassThroughUnits()) {
+            for (Unit other : allUnits) {
+                if (other == this || other.hp <= 0) continue;
+                if (!other.isMoving || other.attackTimer > 0) {
+                    if (vectorMath.getDistance(nextX, nextY, other.x, other.y) < (size + other.size) * 0.48) return false;
+                }
             }
         }
         return true;
@@ -213,6 +215,9 @@ public abstract class Unit {
         }
     }
 
+    protected boolean canPassThroughUnits() {
+        return false;
+    }
     protected boolean canAutoRetaliate(Unit unit) {
         return unit != null && unit.hp > 0 && unit.commandState == 0 && !unit.isMoving && !unit.manualOrder;
     }
@@ -365,3 +370,5 @@ public abstract class Unit {
         }
     }
 }
+
+

@@ -48,6 +48,14 @@ public abstract class Building {
         return 0;
     }
 
+    public int getPathingBlockWidth() {
+        return width;
+    }
+
+    public int getPathingBlockHeight() {
+        return height;
+    }
+
     public Rectangle getBounds() {
         return new Rectangle((int) (x - width / 2.0), (int) (y - height / 2.0), width, height);
     }

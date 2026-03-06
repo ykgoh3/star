@@ -12,6 +12,17 @@ public class CommandCenter extends UnitFactoryBuilding {
         this.image = loadImage("/starcraft/res/command_center.png");
     }
 
+    // Keep side collision mostly intact, but open top/bottom more for worker drop-off.
+    @Override
+    public int getPathingBlockWidth() {
+        return Math.max(20, width - 30);
+    }
+
+    @Override
+    public int getPathingBlockHeight() {
+        return Math.max(20, height - 50);
+    }
+
     // Worker production queue.
     public void enqueueWorker() {
         enqueueUnit();
