@@ -15,7 +15,7 @@ public class SCV extends Unit {
         this.attackDelay = 18;
         this.range = 28;
         this.speed = 2.0;
-        this.size = 18;
+        this.size = 24;
         this.image = loadImage("/starcraft/res/scv.png");
     }
 
