@@ -16,6 +16,7 @@ public abstract class UnitFactoryBuilding extends Building {
     private final int spawnClearRadius;
 
     private int spawnTimer;
+    private int queuedUnits = 0;
 
     protected UnitFactoryBuilding(double x, double y, int team, int width, int height, int maxHp,
                                   int spawnIntervalTicks, int blockedRetryTicks, int spawnClearRadius) {
@@ -26,9 +27,22 @@ public abstract class UnitFactoryBuilding extends Building {
         this.spawnTimer = spawnIntervalTicks;
     }
 
+    public void enqueueUnit() {
+        queuedUnits++;
+    }
+
+    public int getQueuedUnits() {
+        return queuedUnits;
+    }
+
     @Override
     public void update(GamePanel panel) {
         if (panel == null || isDestroyed()) return;
+
+        if (queuedUnits <= 0) {
+            spawnTimer = spawnIntervalTicks;
+            return;
+        }
 
         if (spawnTimer > 0) {
             spawnTimer--;
@@ -40,14 +54,18 @@ public abstract class UnitFactoryBuilding extends Building {
             Unit spawned = createUnit(spawnPoint.x, spawnPoint.y, team);
             if (spawned != null) {
                 panel.getUnits().add(spawned);
+                queuedUnits = Math.max(0, queuedUnits - 1);
+                spawnTimer = spawnIntervalTicks;
+            } else {
+                spawnTimer = blockedRetryTicks;
             }
-            spawnTimer = spawnIntervalTicks;
         } else {
             spawnTimer = blockedRetryTicks;
         }
     }
 
     protected double getProductionProgress() {
+        if (queuedUnits <= 0) return 0.0;
         if (spawnIntervalTicks <= 0) return 1.0;
         return Math.max(0.0, Math.min(1.0, 1.0 - (double) spawnTimer / spawnIntervalTicks));
     }
@@ -72,7 +90,7 @@ public abstract class UnitFactoryBuilding extends Building {
 
         int step = Math.max(10, spawnClearRadius - 4);
         int maxRings = 12;
-        int verticalPushOut = 6; // Push top/bottom lines outward to avoid vertical sticking.
+        int verticalPushOut = 6;
 
         // Ring-first order: start at left-bottom, then trace rectangle clockwise.
         for (int ring = 0; ring < maxRings; ring++) {

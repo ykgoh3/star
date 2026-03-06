@@ -21,6 +21,8 @@ public class GamePanel extends JPanel {
     private TerrainGrid terrain;
     private Timer gameLoop;
 
+    private Building selectedBuilding;
+
     public GamePanel() {
         setBackground(Color.BLACK);
         terrain = new TerrainGrid(800, 600, 20);
@@ -67,7 +69,6 @@ public class GamePanel extends JPanel {
         for (int i = 0; i < units.size(); i++) {
             Unit u = units.get(i);
 
-            // Keep attack-move target if already assigned (e.g. ally assist).
             if (!u.manualOrder) {
                 boolean targetDead = (u.target != null) && (u.target.hp <= 0);
                 boolean noValidTarget = (u.target == null) || targetDead;
@@ -76,7 +77,6 @@ public class GamePanel extends JPanel {
                     if (noValidTarget) {
                         Unit nearest = findNearestEnemyInRange(u, u.range + 200);
                         if (nearest == null) {
-                            // Fallback: continue retaliation chain to the closest enemy on the map.
                             nearest = findNearestEnemyInRange(u, Double.MAX_VALUE);
                         }
                         if (nearest != null) {
@@ -90,7 +90,6 @@ public class GamePanel extends JPanel {
                     Unit nearest = findNearestEnemyInRange(u, u.range + 20);
                     u.target = nearest;
 
-                    // Idle auto-engage: switch to attack-move so target can be chased out of range.
                     if (nearest != null) {
                         u.commandState = 1;
                         u.destX = u.x;
@@ -101,10 +100,8 @@ public class GamePanel extends JPanel {
                     if (nearest != null) {
                         u.target = nearest;
                     } else if (targetDead) {
-                        // Target died and no follow-up target: hold current position.
                         u.stop();
                     } else {
-                        // Attack-move issued to ground: keep advancing until destination.
                         double distToDest = vectorMath.getDistance(u.x, u.y, u.destX, u.destY);
                         if (distToDest <= Math.max(4.0, u.size * 0.5)) {
                             u.stop();
@@ -161,6 +158,64 @@ public class GamePanel extends JPanel {
         return closest;
     }
 
+    public Building findBuildingAt(int x, int y) {
+        for (int i = buildings.size() - 1; i >= 0; i--) {
+            Building b = buildings.get(i);
+            if (!b.isDestroyed() && b.getBounds().contains(x, y)) {
+                return b;
+            }
+        }
+        return null;
+    }
+
+    public void selectBuilding(Building building) {
+        this.selectedBuilding = building;
+    }
+
+    public void clearBuildingSelection() {
+        this.selectedBuilding = null;
+    }
+
+    public boolean handleUiLeftClick(int mouseX, int mouseY) {
+        if (!(selectedBuilding instanceof Barracks barracks)) return false;
+
+        Rectangle marineButton = getMarineButtonBounds();
+        if (marineButton.contains(mouseX, mouseY)) {
+            barracks.enqueueMarine();
+            return true;
+        }
+        return false;
+    }
+
+    private Rectangle getMarineButtonBounds() {
+        int panelX = getWidth() - 180;
+        int panelY = getHeight() - 100;
+        return new Rectangle(panelX + 15, panelY + 40, 150, 30);
+    }
+
+    private void drawBuildingUI(Graphics g) {
+        if (!(selectedBuilding instanceof Barracks barracks)) return;
+
+        int panelX = getWidth() - 180;
+        int panelY = getHeight() - 100;
+
+        g.setColor(new Color(20, 20, 20, 220));
+        g.fillRect(panelX, panelY, 170, 85);
+        g.setColor(new Color(120, 120, 120));
+        g.drawRect(panelX, panelY, 170, 85);
+
+        g.setColor(Color.WHITE);
+        g.drawString("Barracks", panelX + 12, panelY + 18);
+        g.drawString("Queue: " + barracks.getQueuedUnits(), panelX + 95, panelY + 18);
+
+        Rectangle marineButton = getMarineButtonBounds();
+        g.setColor(new Color(60, 90, 180));
+        g.fillRect(marineButton.x, marineButton.y, marineButton.width, marineButton.height);
+        g.setColor(Color.WHITE);
+        g.drawRect(marineButton.x, marineButton.y, marineButton.width, marineButton.height);
+        g.drawString("Train Marine", marineButton.x + 36, marineButton.y + 20);
+    }
+
     public List<Unit> getUnits() {
         return units;
     }
@@ -179,6 +234,11 @@ public class GamePanel extends JPanel {
 
         for (Building building : buildings) {
             building.draw(g);
+            if (building == selectedBuilding) {
+                Rectangle r = building.getBounds();
+                g.setColor(Color.YELLOW);
+                g.drawRect(r.x - 2, r.y - 2, r.width + 4, r.height + 4);
+            }
         }
 
         units.sort((u1, u2) -> Double.compare(u1.y, u2.y));
@@ -186,6 +246,8 @@ public class GamePanel extends JPanel {
         for (Unit u : units) {
             u.draw(g);
         }
+
+        drawBuildingUI(g);
 
         if (inputHandler != null && inputHandler.isDragging && inputHandler.startPoint != null && inputHandler.endPoint != null) {
             g.setColor(Color.GREEN);
