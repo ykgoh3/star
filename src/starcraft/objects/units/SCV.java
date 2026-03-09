@@ -42,6 +42,7 @@ public class SCV extends Unit {
         this.mineralTarget = target;
         this.returnCenter = center;
         this.target = null;
+        this.isMoving = true;
         this.manualOrder = true;
         this.commandState = 2;
         this.destX = target.getX();
@@ -161,6 +162,7 @@ public class SCV extends Unit {
 
     private void commandMove(double tx, double ty) {
         this.commandState = 2;
+        this.isMoving = true;
         this.manualOrder = true;
         this.target = null;
         this.destX = tx;
@@ -170,9 +172,22 @@ public class SCV extends Unit {
     }
 
     @Override
+    protected double getLookAngle() {
+        if (mineralTarget != null) {
+            if (carryMinerals > 0 && returnCenter != null) {
+                return Math.atan2(returnCenter.getY() - y, returnCenter.getX() - x);
+            }
+            return Math.atan2(mineralTarget.getY() - y, mineralTarget.getX() - x);
+        }
+
+        return super.getLookAngle();
+    }
+
+    @Override
     protected boolean canPassThroughUnits() {
         return mineralTarget != null;
     }
+
     @Override
     public void attack(GamePanel panel) {
         int prevHp = (target != null) ? target.hp : 0;
@@ -225,5 +240,3 @@ public class SCV extends Unit {
         drawHealthBar(g);
     }
 }
-
-
