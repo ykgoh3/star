@@ -114,7 +114,7 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                 u.isMoving = true;
 
                 if (u instanceof SCV scv && clickedMineral != null) {
-                    scv.startMining(clickedMineral, panel.findNearestCommandCenter(scv.x, scv.y, scv.team));
+                    scv.startMining(clickedMineral, panel.findNearestCommandCenter(scv.x, scv.y, scv.team), panel);
                     continue;
                 }
 
@@ -180,6 +180,9 @@ public class InputHandler extends MouseAdapter implements KeyListener {
         if (e.getKeyCode() == KeyEvent.VK_S) {
             for (Unit u : units) {
                 if (u.isSelected) {
+                    if (u instanceof SCV scv) {
+                        scv.clearHarvestOrder();
+                    }
                     StopLogic.execute(u);
                     u.commandState = 0;
                 }

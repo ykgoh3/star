@@ -37,7 +37,7 @@ public class GamePanel extends JPanel {
     private Building selectedBuilding;
     private int cameraX = 0;
     private int cameraY = 0;
-    private final int[] minerals = new int[]{50, 50};
+    private final int[] minerals = new int[]{500, 500};
     private final Robot mouseLockRobot;
     private boolean mouseLockEnabled = true;
 
@@ -48,7 +48,7 @@ public class GamePanel extends JPanel {
         addMouseListener(inputHandler);
         addMouseMotionListener(inputHandler);
 
-        buildings.add(new CommandCenter(50, 200, 0));
+        buildings.add(new CommandCenter(100, 200, 0));
         buildings.add(new Barracks(110, 110, 0));
 
         mineralPatches.add(new MineralPatch(180, 250, 1500));
@@ -58,13 +58,13 @@ public class GamePanel extends JPanel {
 
         units.add(new SCV(50, 300, 0));
 
-        for (int row = 0; row < 3; row++) {
-            for (int col = 0; col < 4; col++) {
-                int x = 150 + col * 25 - row * 25;
-                int y = 200 - col * 25 - row * 25;
-                units.add(new Marine(x, y, 0));
-            }
-        }
+//        for (int row = 0; row < 3; row++) {
+//            for (int col = 0; col < 4; col++) {
+//                int x = 150 + col * 25 - row * 25;
+//                int y = 200 - col * 25 - row * 25;
+//                units.add(new Marine(x, y, 0));
+//            }
+//        }
 
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 4; col++) {
@@ -323,6 +323,28 @@ public class GamePanel extends JPanel {
         return null;
     }
 
+    public MineralPatch findAlternativeMineralPatch(MineralPatch requested, Unit worker) {
+        if (requested == null || requested.isDepleted()) return null;
+        if (requested.isAvailableFor(worker)) return requested;
+
+        MineralPatch closest = null;
+        double bestScore = Double.MAX_VALUE;
+
+        for (MineralPatch patch : mineralPatches) {
+            if (patch == requested || patch.isDepleted() || !patch.isAvailableFor(worker)) continue;
+
+            double fromRequested = vectorMath.getDistance(requested.getX(), requested.getY(), patch.getX(), patch.getY());
+            double fromWorker = vectorMath.getDistance(worker.x, worker.y, patch.getX(), patch.getY());
+            double score = fromRequested * 3.0 + fromWorker;
+            if (score < bestScore) {
+                bestScore = score;
+                closest = patch;
+            }
+        }
+
+        return closest;
+    }
+
     public CommandCenter findNearestCommandCenter(double worldX, double worldY, int team) {
         CommandCenter nearest = null;
         double minDistSq = Double.MAX_VALUE;
@@ -555,5 +577,3 @@ public class GamePanel extends JPanel {
         drawBottomUiBar(g);
     }
 }
-
-

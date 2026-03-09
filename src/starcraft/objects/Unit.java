@@ -52,7 +52,6 @@ public abstract class Unit {
     public int hitEffectStyle = 0; // 0: ring, 1: thin diagonal slash, 2: welding sparks
     public Image image;
 
-    // Idle look switching state (left/right only)
     public boolean idleFacingRight = true;
     public int idleLookInterval = randomIdleLookInterval();
     public int idleLookTimer = idleLookInterval;
@@ -118,6 +117,8 @@ public abstract class Unit {
     }
 
     public void resolveActiveOverlap(List<Unit> allUnits, TerrainGrid terrain) {
+        if (canPassThroughUnits()) return;
+
         for (Unit other : allUnits) {
             if (other == this || other.hp <= 0 || !other.isMoving || other.attackTimer > 0) continue;
 
@@ -166,7 +167,6 @@ public abstract class Unit {
         if (dist <= range + 5) {
             target.hp -= damage;
 
-            // Auto-retaliate when taking damage.
             if (target.hp > 0 && target.team != this.team) {
                 if (canAutoRetaliate(target)) {
                     target.target = this;
@@ -177,7 +177,6 @@ public abstract class Unit {
                     target.destY = target.y;
                     target.autoRetaliating = true;
                 }
-                // Request nearby allies to assist even if the damaged unit is already engaged.
                 alertNearbyAllies(target, panel);
             }
 
@@ -215,9 +214,14 @@ public abstract class Unit {
         }
     }
 
+    public boolean ignoresUnitCollision() {
+        return canPassThroughUnits();
+    }
+
     protected boolean canPassThroughUnits() {
         return false;
     }
+
     protected boolean canAutoRetaliate(Unit unit) {
         return unit != null && unit.hp > 0 && unit.commandState == 0 && !unit.isMoving && !unit.manualOrder;
     }
@@ -285,7 +289,6 @@ public abstract class Unit {
             g2.setColor(effect);
             g2.setStroke(new BasicStroke(0.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 
-            // Fountain-like spray: multiple thin streaks bursting outward.
             int rays = 9;
             for (int i = 0; i < rays; i++) {
                 double t = (i - (rays - 1) * 0.5) / ((rays - 1) * 0.5);
@@ -343,22 +346,18 @@ public abstract class Unit {
     }
 
     protected double getLookAngle() {
-        // Engaging in-range target: always face target while attacking.
         if (isEngagingTarget()) {
             return Math.atan2(target.y - y, target.x - x);
         }
 
-        // Moving state: always face movement direction.
         if (isMoving && (Math.abs(velX) > 0.01 || Math.abs(velY) > 0.01)) {
             return Math.atan2(velY, velX);
         }
 
-        // Attack animation fallback.
         if ((attackEffectTimer > 0 || postAttackDelayTimer > 0) && target != null && target.hp > 0) {
             return Math.atan2(target.y - y, target.x - x);
         }
 
-        // Non-attack idle state: alternate left/right.
         return idleFacingRight ? 0.0 : Math.PI;
     }
 
@@ -370,5 +369,4 @@ public abstract class Unit {
         }
     }
 }
-
 

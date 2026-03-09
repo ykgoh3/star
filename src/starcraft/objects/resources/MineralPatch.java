@@ -1,14 +1,25 @@
 package starcraft.objects.resources;
 
+import starcraft.objects.Unit;
+
 import java.awt.*;
+import java.awt.geom.Point2D;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MineralPatch {
     private static final Image IMAGE = loadImage("/starcraft/res/minerals.PNG");
+    private static final double HARVEST_DISTANCE = 20.0;
+    private static final double WAIT_DISTANCE = 40.0;
+    private static final int WAIT_SLOT_COUNT = 6;
 
     private final double x;
     private final double y;
     private final int radius;
     private int remaining;
+
+    private Unit activeWorker;
+    private final List<Unit> waitingWorkers = new ArrayList<>();
 
     private int hitEffectTimer = 0;
     private Color hitEffectColor = new Color(130, 220, 255);
@@ -46,6 +57,84 @@ public class MineralPatch {
         int mined = Math.min(amount, remaining);
         remaining -= mined;
         return mined;
+    }
+
+    public boolean isAvailableFor(Unit worker) {
+        return worker != null && (activeWorker == null || activeWorker == worker);
+    }
+
+    public boolean hasActiveWorker() {
+        return activeWorker != null;
+    }
+
+    public boolean isActiveWorker(Unit worker) {
+        return worker != null && activeWorker == worker;
+    }
+
+    public void assignWorker(Unit worker) {
+        if (worker == null) return;
+
+        if (activeWorker == worker) {
+            waitingWorkers.remove(worker);
+            return;
+        }
+
+        if (activeWorker == null) {
+            activeWorker = worker;
+            waitingWorkers.remove(worker);
+            return;
+        }
+
+        if (!waitingWorkers.contains(worker)) {
+            waitingWorkers.add(worker);
+        }
+    }
+
+    public void releaseWorker(Unit worker) {
+        if (worker == null) return;
+
+        if (activeWorker == worker) {
+            activeWorker = null;
+            promoteNextWorker();
+            return;
+        }
+
+        waitingWorkers.remove(worker);
+    }
+
+    public Point2D.Double getHarvestPoint() {
+        return new Point2D.Double(x, y - HARVEST_DISTANCE);
+    }
+
+    public Point2D.Double getApproachPoint(Unit worker) {
+        if (isActiveWorker(worker)) {
+            return getHarvestPoint();
+        }
+        return getWaitingPoint(worker);
+    }
+
+    private void promoteNextWorker() {
+        while (!waitingWorkers.isEmpty()) {
+            Unit next = waitingWorkers.remove(0);
+            if (next != null && next.hp > 0) {
+                activeWorker = next;
+                return;
+            }
+        }
+    }
+
+    private Point2D.Double getWaitingPoint(Unit worker) {
+        int index = waitingWorkers.indexOf(worker);
+        if (index < 0) {
+            index = 0;
+        }
+
+        double angle = (-Math.PI / 2.0) + (Math.PI * 2.0 * (index % WAIT_SLOT_COUNT) / WAIT_SLOT_COUNT);
+        double layer = 1.0 + (index / WAIT_SLOT_COUNT) * 0.35;
+        return new Point2D.Double(
+                x + Math.cos(angle) * WAIT_DISTANCE * layer,
+                y + Math.sin(angle) * WAIT_DISTANCE * layer
+        );
     }
 
     public void triggerHitEffect(Color color, int style, int duration) {
