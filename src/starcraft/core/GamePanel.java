@@ -26,6 +26,7 @@ public class GamePanel extends JPanel {
     private static final int WORLD_HEIGHT = 1200;
     private static final int EDGE_SCROLL_THRESHOLD = 20;
     private static final int EDGE_SCROLL_SPEED = 8;
+    private static final double MINERAL_CLUSTER_RANGE = 180.0;
 
     private final ArrayList<Unit> units = new ArrayList<>();
     private final ArrayList<Building> buildings = new ArrayList<>();
@@ -51,12 +52,17 @@ public class GamePanel extends JPanel {
         buildings.add(new CommandCenter(100, 200, 0));
         buildings.add(new Barracks(110, 110, 0));
 
-        mineralPatches.add(new MineralPatch(180, 250, 1500));
-        mineralPatches.add(new MineralPatch(220, 280, 1500));
-        mineralPatches.add(new MineralPatch(260, 250, 1500));
-        mineralPatches.add(new MineralPatch(220, 220, 1500));
+        mineralPatches.add(new MineralPatch(250, 126, 1500));
+        mineralPatches.add(new MineralPatch(258, 156, 1500));
+        mineralPatches.add(new MineralPatch(268, 181, 1500));
+        mineralPatches.add(new MineralPatch(262, 219, 1500));
+        mineralPatches.add(new MineralPatch(264, 244, 1500));
+        mineralPatches.add(new MineralPatch(248, 274, 1500));
 
         units.add(new SCV(50, 300, 0));
+        units.add(new SCV(75, 300, 0));
+        units.add(new SCV(100, 300, 0));
+        units.add(new SCV(125, 300, 0));
 
 //        for (int row = 0; row < 3; row++) {
 //            for (int col = 0; col < 4; col++) {
@@ -235,6 +241,11 @@ public class GamePanel extends JPanel {
                     building.getPathingPadding()
             );
         }
+
+        for (MineralPatch patch : mineralPatches) {
+            if (patch.isDepleted()) continue;
+            terrain.blockCircleWorld(patch.getX(), patch.getY(), patch.getPathingRadius());
+        }
     }
 
     private Unit findNearestEnemyInRange(Unit me, double maxRange) {
@@ -323,26 +334,64 @@ public class GamePanel extends JPanel {
         return null;
     }
 
-    public MineralPatch findAlternativeMineralPatch(MineralPatch requested, Unit worker) {
-        if (requested == null || requested.isDepleted()) return null;
-        if (requested.isAvailableFor(worker)) return requested;
+    public MineralPatch findBestMineralLoopAssignment(MineralPatch origin, Unit worker) {
+        if (origin == null || origin.isDepleted() || worker == null) return null;
 
-        MineralPatch closest = null;
-        double bestScore = Double.MAX_VALUE;
-
+        int bestLoopCount = Integer.MAX_VALUE;
         for (MineralPatch patch : mineralPatches) {
-            if (patch == requested || patch.isDepleted() || !patch.isAvailableFor(worker)) continue;
+            if (!isInMineralCluster(origin, patch)) continue;
+            bestLoopCount = Math.min(bestLoopCount, patch.getAssignedWorkerCount());
+        }
 
-            double fromRequested = vectorMath.getDistance(requested.getX(), requested.getY(), patch.getX(), patch.getY());
-            double fromWorker = vectorMath.getDistance(worker.x, worker.y, patch.getX(), patch.getY());
-            double score = fromRequested * 3.0 + fromWorker;
-            if (score < bestScore) {
-                bestScore = score;
-                closest = patch;
+        if (bestLoopCount == Integer.MAX_VALUE) {
+            return null;
+        }
+
+        if (origin.getAssignedWorkerCount() == bestLoopCount) {
+            return origin;
+        }
+
+        MineralPatch bestPatch = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (MineralPatch patch : mineralPatches) {
+            if (!isInMineralCluster(origin, patch)) continue;
+            if (patch.getAssignedWorkerCount() != bestLoopCount) continue;
+
+            double workerDistance = vectorMath.getDistance(worker.x, worker.y, patch.getX(), patch.getY());
+            if (workerDistance < bestDistance) {
+                bestDistance = workerDistance;
+                bestPatch = patch;
             }
         }
 
-        return closest;
+        return bestPatch;
+    }
+
+    public MineralPatch findRedistributionMineralPatch(MineralPatch origin, MineralPatch current, Unit worker) {
+        return findBestMineralLoopAssignment(origin, worker);
+    }
+
+    public MineralPatch findEmptyRedistributionMineralPatch(MineralPatch origin, MineralPatch current, Unit worker) {
+        if (origin == null || origin.isDepleted() || worker == null) return null;
+
+        MineralPatch bestPatch = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (MineralPatch patch : mineralPatches) {
+            if (!isInMineralCluster(origin, patch)) continue;
+            if (patch.getAssignedWorkerCount() != 0) continue;
+
+            double workerDistance = vectorMath.getDistance(worker.x, worker.y, patch.getX(), patch.getY());
+            if (workerDistance < bestDistance) {
+                bestDistance = workerDistance;
+                bestPatch = patch;
+            }
+        }
+        return bestPatch;
+    }
+
+    private boolean isInMineralCluster(MineralPatch origin, MineralPatch candidate) {
+        if (origin == null || candidate == null || candidate.isDepleted()) return false;
+        return vectorMath.getDistance(origin.getX(), origin.getY(), candidate.getX(), candidate.getY()) <= MINERAL_CLUSTER_RANGE;
     }
 
     public CommandCenter findNearestCommandCenter(double worldX, double worldY, int team) {

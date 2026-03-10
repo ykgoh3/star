@@ -42,6 +42,9 @@ public abstract class Unit {
     public int stuckTimer = 0;
     public double currentAngle = 0;
     public boolean isBypassing = false;
+    public int escapeMoveTicks = 0;
+    public double escapeDirX = 0;
+    public double escapeDirY = 0;
 
     public List<Point> path = Collections.emptyList();
     public int pathIndex = 0;
@@ -75,6 +78,11 @@ public abstract class Unit {
         if (postAttackDelayTimer > 0) {
             velX = 0;
             velY = 0;
+            return;
+        }
+
+        if (shouldUseEmbeddedEscape() && handleEmbeddedEscape(allUnits, terrain)) {
+            updateIdleLook();
             return;
         }
 
@@ -259,8 +267,205 @@ public abstract class Unit {
         return true;
     }
 
-    public void stop() {
+        public void stop() {
         StopLogic.execute(this);
+    }
+
+    protected boolean handleEmbeddedEscape(List<Unit> allUnits, TerrainGrid terrain) {
+        if (!isEmbedded(allUnits, terrain)) {
+            escapeMoveTicks = 0;
+            return false;
+        }
+
+        if (escapeMoveTicks <= 0 || !canEscapeStep(escapeDirX, escapeDirY, allUnits, terrain)) {
+            chooseEscapeDirection(allUnits, terrain);
+        }
+
+        if (escapeMoveTicks <= 0) {
+            velX = 0;
+            velY = 0;
+            return true;
+        }
+
+        double nextX = x + escapeDirX * speed;
+        double nextY = y + escapeDirY * speed;
+        if (!canEscapeStep(escapeDirX, escapeDirY, allUnits, terrain)) {
+            escapeMoveTicks = 0;
+            velX = 0;
+            velY = 0;
+            return true;
+        }
+
+        x = nextX;
+        y = nextY;
+        velX = escapeDirX;
+        velY = escapeDirY;
+        escapeMoveTicks--;
+        resolveActiveOverlap(allUnits, terrain);
+        return true;
+    }
+
+    protected boolean isEmbedded(List<Unit> allUnits, TerrainGrid terrain) {
+        return overlapsBlockedTerrain(terrain) || overlapsAnyUnit(allUnits);
+    }
+
+    protected boolean overlapsBlockedTerrain(TerrainGrid terrain) {
+        if (terrain == null) return false;
+
+        double r = size * 0.5;
+        for (int i = 0; i < 8; i++) {
+            double ang = i * Math.PI / 4.0;
+            int cellX = (int) ((x + Math.cos(ang) * r) / terrain.cellSize);
+            int cellY = (int) ((y + Math.sin(ang) * r) / terrain.cellSize);
+            if (!terrain.isWalkableCell(cellX, cellY)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected boolean overlapsAnyUnit(List<Unit> allUnits) {
+        if (canPassThroughUnits()) return false;
+        if (allUnits == null) return false;
+
+        for (Unit other : allUnits) {
+            if (other == this || other.hp <= 0) continue;
+            if (vectorMath.getDistance(x, y, other.x, other.y) < (size + other.size) * 0.48) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected void chooseEscapeDirection(List<Unit> allUnits, TerrainGrid terrain) {
+        double currentOverlap = getEmbeddedOverlapScore(x, y, allUnits, terrain);
+        double baseAngle = ThreadLocalRandom.current().nextDouble(0.0, Math.PI * 2.0);
+        double bestDirX = 0.0;
+        double bestDirY = 0.0;
+        double bestScore = currentOverlap;
+        int bestTicks = 0;
+
+        for (int i = 0; i < 20; i++) {
+            double angle = baseAngle + ThreadLocalRandom.current().nextDouble(-Math.PI, Math.PI);
+            double dx = Math.cos(angle);
+            double dy = Math.sin(angle);
+            EscapeCandidate candidate = evaluateEscapeDirection(dx, dy, allUnits, terrain, currentOverlap);
+            if (candidate.accepted && candidate.bestScore < bestScore) {
+                bestDirX = dx;
+                bestDirY = dy;
+                bestScore = candidate.bestScore;
+                bestTicks = candidate.suggestedTicks;
+            }
+        }
+
+        double[] fallbackAngles = {0.0, Math.PI / 6.0, -Math.PI / 6.0, Math.PI / 3.0, -Math.PI / 3.0, Math.PI / 2.0, -Math.PI / 2.0, Math.PI};
+        for (double angle : fallbackAngles) {
+            double dx = Math.cos(angle);
+            double dy = Math.sin(angle);
+            EscapeCandidate candidate = evaluateEscapeDirection(dx, dy, allUnits, terrain, currentOverlap);
+            if (candidate.accepted && candidate.bestScore < bestScore) {
+                bestDirX = dx;
+                bestDirY = dy;
+                bestScore = candidate.bestScore;
+                bestTicks = candidate.suggestedTicks;
+            }
+        }
+
+        if (bestTicks > 0) {
+            escapeDirX = bestDirX;
+            escapeDirY = bestDirY;
+            escapeMoveTicks = bestTicks;
+            return;
+        }
+
+        escapeMoveTicks = 0;
+        escapeDirX = 0;
+        escapeDirY = 0;
+    }
+
+    protected boolean canEscapeStep(double dirX, double dirY, List<Unit> allUnits, TerrainGrid terrain) {
+        if (terrain == null) return false;
+        if (Math.abs(dirX) < 0.001 && Math.abs(dirY) < 0.001) return false;
+
+        double currentOverlap = getEmbeddedOverlapScore(x, y, allUnits, terrain);
+        EscapeCandidate candidate = evaluateEscapeDirection(dirX, dirY, allUnits, terrain, currentOverlap);
+        if (!candidate.accepted) {
+            return false;
+        }
+
+        double nextX = x + dirX * speed;
+        double nextY = y + dirY * speed;
+        double nextOverlap = getEmbeddedOverlapScore(nextX, nextY, allUnits, terrain);
+        return nextOverlap <= currentOverlap + 0.05;
+    }
+
+    protected EscapeCandidate evaluateEscapeDirection(double dirX, double dirY, List<Unit> allUnits, TerrainGrid terrain, double currentOverlap) {
+        double bestScore = currentOverlap;
+        int bestStep = 0;
+
+        for (int step = 1; step <= 8; step++) {
+            double sampleX = x + dirX * speed * step;
+            double sampleY = y + dirY * speed * step;
+            double score = getEmbeddedOverlapScore(sampleX, sampleY, allUnits, terrain);
+            if (score < bestScore) {
+                bestScore = score;
+                bestStep = step;
+                if (score <= 0.01) {
+                    break;
+                }
+            }
+        }
+
+        boolean accepted = bestStep > 0 && bestScore + 0.01 < currentOverlap;
+        int suggestedTicks = accepted ? Math.max(4, bestStep) : 0;
+        return new EscapeCandidate(accepted, bestScore, suggestedTicks);
+    }
+
+    protected double getEmbeddedOverlapScore(double sampleX, double sampleY, List<Unit> allUnits, TerrainGrid terrain) {
+        double score = 0.0;
+        double r = size * 0.5;
+
+        if (terrain != null) {
+            for (int i = 0; i < 8; i++) {
+                double ang = i * Math.PI / 4.0;
+                int cellX = (int) ((sampleX + Math.cos(ang) * r) / terrain.cellSize);
+                int cellY = (int) ((sampleY + Math.sin(ang) * r) / terrain.cellSize);
+                if (!terrain.isWalkableCell(cellX, cellY)) {
+                    score += 1.0;
+                }
+            }
+        }
+
+        if (!canPassThroughUnits() && allUnits != null) {
+            for (Unit other : allUnits) {
+                if (other == this || other.hp <= 0) continue;
+                double minDist = (size + other.size) * 0.48;
+                double dist = vectorMath.getDistance(sampleX, sampleY, other.x, other.y);
+                if (dist < minDist) {
+                    score += 1.0 + (minDist - dist) / Math.max(1.0, minDist);
+                }
+            }
+        }
+
+        return score;
+    }
+
+    protected static final class EscapeCandidate {
+        final boolean accepted;
+        final double bestScore;
+        final int suggestedTicks;
+
+        EscapeCandidate(boolean accepted, double bestScore, int suggestedTicks) {
+            this.accepted = accepted;
+            this.bestScore = bestScore;
+            this.suggestedTicks = suggestedTicks;
+        }
+    }
+
+    protected boolean shouldUseEmbeddedEscape() {
+        return true;
     }
 
     public abstract void draw(Graphics g);
@@ -369,4 +574,8 @@ public abstract class Unit {
         }
     }
 }
+
+
+
+
 

@@ -11,13 +11,17 @@ import java.awt.*;
 import java.awt.geom.Point2D;
 
 public class SCV extends Unit {
-    private static final int HARVEST_TIME_TICKS = 50;
+    private static final int HARVEST_TIME_TICKS = 60;
     private static final int CARGO_SIZE = 8;
-    private static final double HARVEST_RANGE = 28.0;
+    private static final double HARVEST_RANGE = 48.0;
     private static final double RETURN_RANGE = 12.0;
     private static final double RETURN_APPROACH_MARGIN = 4.0;
     private static final double WAIT_RANGE = 6.0;
+    private static final double LOOP_ASSIGNMENT_RANGE = 44.0;
+    private static final double JAM_ESCAPE_MARGIN = 4.0;
+    private static final double JAM_REPATH_DISTANCE = 10.0;
 
+    private MineralPatch requestedMineral;
     private MineralPatch mineralTarget;
     private CommandCenter returnCenter;
     private int carryMinerals = 0;
@@ -25,6 +29,7 @@ public class SCV extends Unit {
     private boolean movingToMineral = false;
     private boolean returningCargo = false;
     private boolean waitingForMineral = false;
+    private boolean loopAssigned = false;
 
     public SCV(int x, int y, int team) {
         super(x, y, team);
@@ -46,28 +51,30 @@ public class SCV extends Unit {
 
         clearHarvestOrder();
 
-        MineralPatch assigned = panel.findAlternativeMineralPatch(target, this);
-        this.mineralTarget = (assigned != null) ? assigned : target;
+        this.requestedMineral = target;
+        this.mineralTarget = target;
         this.returnCenter = center;
-        this.carryMinerals = 0;
         this.harvestTimer = HARVEST_TIME_TICKS;
+        this.loopAssigned = false;
         this.target = null;
         this.isMoving = true;
         this.manualOrder = true;
         this.commandState = 2;
 
-        this.mineralTarget.assignWorker(this);
-        updateMiningApproach();
+        approachCurrentMineral();
     }
 
     public void clearHarvestOrder() {
+        capturePartialHarvest();
+
         if (this.mineralTarget != null) {
             this.mineralTarget.releaseWorker(this);
         }
+        this.requestedMineral = null;
         this.mineralTarget = null;
         this.returnCenter = null;
-        this.carryMinerals = 0;
         this.harvestTimer = HARVEST_TIME_TICKS;
+        this.loopAssigned = false;
         this.movingToMineral = false;
         this.returningCargo = false;
         this.waitingForMineral = false;
@@ -81,32 +88,90 @@ public class SCV extends Unit {
             return;
         }
 
+        if (requestedMineral != null && requestedMineral.isDepleted()) {
+            requestedMineral = mineralTarget;
+        }
+
         if (returnCenter == null || returnCenter.isDestroyed()) {
             returnCenter = panel.findNearestCommandCenter(x, y, team);
             if (returnCenter == null) return;
         }
 
-        if (carryMinerals <= 0) {
-            if (mineralTarget.isAvailableFor(this)) {
-                mineralTarget.assignWorker(this);
-                movingToMineral = true;
-                waitingForMineral = false;
-                moveToMineralAndHarvest();
-            } else {
-                waitingForMineral = true;
-                movingToMineral = false;
-                waitForMineral();
-            }
+        if (carryMinerals > 0) {
+            moveToCenterAndReturn(panel);
             return;
         }
 
-        moveToCenterAndReturn(panel);
+        if (!loopAssigned) {
+            if (!isNearMineral(mineralTarget, LOOP_ASSIGNMENT_RANGE)) {
+                approachCurrentMineral();
+                return;
+            }
+
+            assignLoop(panel);
+            if (!loopAssigned) {
+                return;
+            }
+        }
+
+        if (mineralTarget.isActiveWorker(this)) {
+            movingToMineral = true;
+            waitingForMineral = false;
+            moveToMineralAndHarvest();
+        } else {
+            waitingForMineral = true;
+            movingToMineral = false;
+            waitForMineral();
+        }
+    }
+
+    private void assignLoop(GamePanel panel) {
+        MineralPatch origin = (requestedMineral != null && !requestedMineral.isDepleted()) ? requestedMineral : mineralTarget;
+        MineralPatch assigned = panel.findBestMineralLoopAssignment(origin, this);
+        if (assigned == null) {
+            approachCurrentMineral();
+            return;
+        }
+
+        mineralTarget = assigned;
+        mineralTarget.assignWorker(this);
+        loopAssigned = true;
+        approachCurrentMineral();
+    }
+
+    private void capturePartialHarvest() {
+        if (mineralTarget == null || carryMinerals > 0) return;
+        if (!mineralTarget.isActiveWorker(this)) return;
+        if (movingToMineral || waitingForMineral || returningCargo) return;
+
+        int progressTicks = HARVEST_TIME_TICKS - harvestTimer;
+        if (progressTicks <= 0) return;
+
+        int partialAmount = (CARGO_SIZE * progressTicks) / HARVEST_TIME_TICKS;
+        partialAmount = Math.max(0, Math.min(CARGO_SIZE - 1, partialAmount));
+        if (partialAmount <= 0) return;
+
+        int mined = mineralTarget.harvest(partialAmount);
+        if (mined > 0) {
+            carryMinerals = mined;
+            mineralTarget.releaseActiveWorker(this);
+        }
     }
 
     private void moveToMineralAndHarvest() {
-        Point2D.Double harvestPoint = mineralTarget.getHarvestPoint();
+        Point2D.Double harvestPoint = mineralTarget.getHarvestPoint(this, returnCenter);
         double distToPatch = vectorMath.getDistance(x, y, mineralTarget.getX(), mineralTarget.getY());
         double distToPoint = vectorMath.getDistance(x, y, harvestPoint.x, harvestPoint.y);
+
+        Point2D.Double jamEscape = getJamEscapePoint(distToPatch, distToPoint);
+        if (jamEscape != null) {
+            commandMove(jamEscape.x, jamEscape.y);
+            movingToMineral = true;
+            returningCargo = false;
+            waitingForMineral = false;
+            return;
+        }
+
         if (distToPatch > HARVEST_RANGE || distToPoint > Math.max(speed, 3.0)) {
             commandMove(harvestPoint.x, harvestPoint.y);
             movingToMineral = true;
@@ -129,7 +194,7 @@ public class SCV extends Unit {
 
         if (mined > 0) {
             carryMinerals = mined;
-            mineralTarget.releaseWorker(this);
+            mineralTarget.releaseActiveWorker(this);
             double[] returnPoint = getReturnApproachPoint();
             commandMove(returnPoint[0], returnPoint[1]);
             returningCargo = true;
@@ -137,8 +202,7 @@ public class SCV extends Unit {
     }
 
     private void waitForMineral() {
-        mineralTarget.assignWorker(this);
-        Point2D.Double waitPoint = mineralTarget.getApproachPoint(this);
+        Point2D.Double waitPoint = mineralTarget.getApproachPoint(this, returnCenter);
         double distToWaitPoint = vectorMath.getDistance(x, y, waitPoint.x, waitPoint.y);
         if (distToWaitPoint > WAIT_RANGE) {
             commandMove(waitPoint.x, waitPoint.y);
@@ -174,21 +238,46 @@ public class SCV extends Unit {
         returningCargo = false;
 
         if (mineralTarget != null && !mineralTarget.isDepleted()) {
-            mineralTarget.assignWorker(this);
-            updateMiningApproach();
+            mineralTarget.resumeWorker(this);
+            approachCurrentMineral();
         } else {
             clearHarvestOrder();
         }
     }
 
-    private void updateMiningApproach() {
+    private void approachCurrentMineral() {
         if (mineralTarget == null) return;
 
-        Point2D.Double point = mineralTarget.getApproachPoint(this);
+        Point2D.Double point = loopAssigned
+                ? mineralTarget.getApproachPoint(this, returnCenter)
+                : mineralTarget.getHarvestPoint(this, returnCenter);
         commandMove(point.x, point.y);
-        movingToMineral = mineralTarget.isActiveWorker(this);
-        waitingForMineral = !movingToMineral;
+        movingToMineral = true;
+        waitingForMineral = false;
         returningCargo = false;
+    }
+
+    private Point2D.Double getJamEscapePoint(double distToPatch, double distToPoint) {
+        if (mineralTarget == null) return null;
+
+        double jamDistance = mineralTarget.getRadius() + size * 0.5 + JAM_ESCAPE_MARGIN;
+        if (distToPatch >= jamDistance || distToPoint <= JAM_REPATH_DISTANCE) return null;
+
+        double angle = Math.atan2(y - mineralTarget.getY(), x - mineralTarget.getX());
+        if (Math.abs(x - mineralTarget.getX()) < 0.001 && Math.abs(y - mineralTarget.getY()) < 0.001) {
+            angle = 0.0;
+        }
+
+        double escapeDistance = jamDistance + 6.0;
+        return new Point2D.Double(
+                mineralTarget.getX() + Math.cos(angle) * escapeDistance,
+                mineralTarget.getY() + Math.sin(angle) * escapeDistance
+        );
+    }
+
+    private boolean isNearMineral(MineralPatch patch, double range) {
+        if (patch == null) return false;
+        return vectorMath.getDistance(x, y, patch.getX(), patch.getY()) <= range;
     }
 
     private double[] getReturnApproachPoint() {
@@ -256,6 +345,11 @@ public class SCV extends Unit {
         }
 
         return super.getLookAngle();
+    }
+
+    @Override
+    protected boolean shouldUseEmbeddedEscape() {
+        return mineralTarget == null;
     }
 
     @Override

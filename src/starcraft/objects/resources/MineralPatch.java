@@ -1,25 +1,37 @@
 package starcraft.objects.resources;
 
 import starcraft.objects.Unit;
+import starcraft.objects.buildings.CommandCenter;
 
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 public class MineralPatch {
     private static final Image IMAGE = loadImage("/starcraft/res/minerals.PNG");
-    private static final double HARVEST_DISTANCE = 20.0;
-    private static final double WAIT_DISTANCE = 40.0;
+    private static final double HARVEST_DISTANCE = 40.0;
+    private static final double WAIT_DISTANCE = 60.0;
     private static final int WAIT_SLOT_COUNT = 6;
+    private static final int ACTIVE_WORKER_LIMIT = 1;
+    private static final int HARVEST_DIRECTION_COUNT = 4;
+    private static final int PATHING_RADIUS = 14;
+    private static final Point2D.Double[] HARVEST_SLOT_OFFSETS = new Point2D.Double[]{
+            new Point2D.Double(0.0, -HARVEST_DISTANCE),
+            new Point2D.Double(HARVEST_DISTANCE, 0.0),
+            new Point2D.Double(0.0, HARVEST_DISTANCE),
+            new Point2D.Double(-HARVEST_DISTANCE, 0.0)
+    };
 
     private final double x;
     private final double y;
     private final int radius;
     private int remaining;
 
-    private Unit activeWorker;
-    private final List<Unit> waitingWorkers = new ArrayList<>();
+    private final List<Unit> loopWorkers = new ArrayList<>();
+    private final List<Unit> activeWorkers = new ArrayList<>();
+    private final List<Unit> unavailableWorkers = new ArrayList<>();
 
     private int hitEffectTimer = 0;
     private Color hitEffectColor = new Color(130, 220, 255);
@@ -44,6 +56,10 @@ public class MineralPatch {
         return radius;
     }
 
+    public int getPathingRadius() {
+        return PATHING_RADIUS;
+    }
+
     public boolean isDepleted() {
         return remaining <= 0;
     }
@@ -59,82 +75,170 @@ public class MineralPatch {
         return mined;
     }
 
-    public boolean isAvailableFor(Unit worker) {
-        return worker != null && (activeWorker == null || activeWorker == worker);
+    public int getAssignedWorkerCount() {
+        return loopWorkers.size();
     }
 
-    public boolean hasActiveWorker() {
-        return activeWorker != null;
+    public boolean isAvailableFor(Unit worker) {
+        return worker != null;
     }
 
     public boolean isActiveWorker(Unit worker) {
-        return worker != null && activeWorker == worker;
+        return worker != null && activeWorkers.contains(worker);
+    }
+
+    public boolean isAssignedWorker(Unit worker) {
+        return worker != null && loopWorkers.contains(worker);
     }
 
     public void assignWorker(Unit worker) {
         if (worker == null) return;
 
-        if (activeWorker == worker) {
-            waitingWorkers.remove(worker);
-            return;
+        if (!loopWorkers.contains(worker)) {
+            loopWorkers.add(worker);
         }
-
-        if (activeWorker == null) {
-            activeWorker = worker;
-            waitingWorkers.remove(worker);
-            return;
-        }
-
-        if (!waitingWorkers.contains(worker)) {
-            waitingWorkers.add(worker);
-        }
+        unavailableWorkers.remove(worker);
+        promoteWorkers();
     }
 
     public void releaseWorker(Unit worker) {
         if (worker == null) return;
 
-        if (activeWorker == worker) {
-            activeWorker = null;
-            promoteNextWorker();
-            return;
+        loopWorkers.remove(worker);
+        activeWorkers.remove(worker);
+        unavailableWorkers.remove(worker);
+        promoteWorkers();
+    }
+
+    public void releaseActiveWorker(Unit worker) {
+        if (worker == null) return;
+        activeWorkers.remove(worker);
+        if (loopWorkers.contains(worker) && !unavailableWorkers.contains(worker)) {
+            unavailableWorkers.add(worker);
         }
-
-        waitingWorkers.remove(worker);
+        promoteWorkers();
     }
 
-    public Point2D.Double getHarvestPoint() {
-        return new Point2D.Double(x, y - HARVEST_DISTANCE);
+    public void resumeWorker(Unit worker) {
+        if (worker == null || !loopWorkers.contains(worker)) return;
+        unavailableWorkers.remove(worker);
+        promoteWorkers();
     }
 
-    public Point2D.Double getApproachPoint(Unit worker) {
+    public Point2D.Double getHarvestPoint(Unit worker, CommandCenter center) {
+        int slotIndex = getAssignedHarvestSlotIndex(worker, center);
+        Point2D.Double offset = HARVEST_SLOT_OFFSETS[slotIndex];
+        return new Point2D.Double(x + offset.x, y + offset.y);
+    }
+
+    public Point2D.Double getApproachPoint(Unit worker, CommandCenter center) {
         if (isActiveWorker(worker)) {
-            return getHarvestPoint();
+            return getHarvestPoint(worker, center);
         }
-        return getWaitingPoint(worker);
+        return getWaitingPoint(worker, center);
     }
 
-    private void promoteNextWorker() {
-        while (!waitingWorkers.isEmpty()) {
-            Unit next = waitingWorkers.remove(0);
-            if (next != null && next.hp > 0) {
-                activeWorker = next;
-                return;
+    private void promoteWorkers() {
+        activeWorkers.removeIf(worker -> worker == null || worker.hp <= 0 || !loopWorkers.contains(worker));
+        unavailableWorkers.removeIf(worker -> worker == null || worker.hp <= 0 || !loopWorkers.contains(worker));
+
+        while (activeWorkers.size() < ACTIVE_WORKER_LIMIT) {
+            Unit next = findNextEligibleWorker();
+            if (next == null) {
+                break;
             }
+            activeWorkers.add(next);
         }
     }
 
-    private Point2D.Double getWaitingPoint(Unit worker) {
-        int index = waitingWorkers.indexOf(worker);
-        if (index < 0) {
-            index = 0;
+    private Unit findNextEligibleWorker() {
+        for (Unit worker : loopWorkers) {
+            if (worker == null || worker.hp <= 0) continue;
+            if (activeWorkers.contains(worker)) continue;
+            if (unavailableWorkers.contains(worker)) continue;
+            return worker;
+        }
+        return null;
+    }
+
+    private int getAssignedHarvestSlotIndex(Unit worker, CommandCenter center) {
+        List<Unit> orderedWorkers = new ArrayList<>(activeWorkers);
+        if (worker != null && !orderedWorkers.contains(worker)) {
+            orderedWorkers.add(worker);
         }
 
-        double angle = (-Math.PI / 2.0) + (Math.PI * 2.0 * (index % WAIT_SLOT_COUNT) / WAIT_SLOT_COUNT);
-        double layer = 1.0 + (index / WAIT_SLOT_COUNT) * 0.35;
+        int workerIndex = orderedWorkers.indexOf(worker);
+        if (workerIndex < 0) {
+            workerIndex = 0;
+        }
+
+        List<Integer> orderedSlots = getHarvestSlotPriority(center);
+        return orderedSlots.get(workerIndex % HARVEST_DIRECTION_COUNT);
+    }
+
+    private List<Integer> getHarvestSlotPriority(CommandCenter center) {
+        List<Integer> orderedSlots = new ArrayList<>(HARVEST_DIRECTION_COUNT);
+        for (int i = 0; i < HARVEST_DIRECTION_COUNT; i++) {
+            orderedSlots.add(i);
+        }
+
+        orderedSlots.sort(Comparator.comparingDouble(slot -> {
+            Point2D.Double offset = HARVEST_SLOT_OFFSETS[slot];
+            return distanceToCenter(x + offset.x, y + offset.y, center);
+        }));
+        return orderedSlots;
+    }
+
+    private Point2D.Double getWaitingPoint(Unit worker, CommandCenter center) {
+        int index = getWaitingWorkerIndex(worker);
+        List<Integer> orderedSlots = getHarvestSlotPriority(center);
+        int slotIndex = orderedSlots.get(index % HARVEST_DIRECTION_COUNT);
+        double baseAngle = Math.atan2(HARVEST_SLOT_OFFSETS[slotIndex].y, HARVEST_SLOT_OFFSETS[slotIndex].x);
+        int ringIndex = index / HARVEST_DIRECTION_COUNT;
+        double angleOffset = (Math.PI * 2.0 * ringIndex) / WAIT_SLOT_COUNT;
+        double layer = 1.0 + ringIndex * 0.35;
+        double angle = baseAngle + angleOffset;
+
         return new Point2D.Double(
                 x + Math.cos(angle) * WAIT_DISTANCE * layer,
                 y + Math.sin(angle) * WAIT_DISTANCE * layer
         );
+    }
+
+    private int getWaitingWorkerIndex(Unit worker) {
+        int index = 0;
+        for (Unit loopWorker : loopWorkers) {
+            if (loopWorker == null || activeWorkers.contains(loopWorker)) {
+                continue;
+            }
+            if (loopWorker == worker) {
+                return index;
+            }
+            index++;
+        }
+        return 0;
+    }
+
+    public double getBestHarvestDistanceTo(CommandCenter center) {
+        double bestDistance = Double.MAX_VALUE;
+        for (Point2D.Double offset : HARVEST_SLOT_OFFSETS) {
+            double distance = distanceToCenter(x + offset.x, y + offset.y, center);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+            }
+        }
+        return bestDistance;
+    }
+
+    private double distanceToCenter(Unit worker, CommandCenter center) {
+        if (worker == null) return Double.MAX_VALUE;
+        if (center == null) return Point2D.distance(worker.x, worker.y, x, y);
+        return Point2D.distance(worker.x, worker.y, center.getX(), center.getY());
+    }
+
+    private double distanceToCenter(double pointX, double pointY, CommandCenter center) {
+        if (center == null) return Point2D.distance(pointX, pointY, x, y);
+        return Point2D.distance(pointX, pointY, center.getX(), center.getY());
     }
 
     public void triggerHitEffect(Color color, int style, int duration) {
