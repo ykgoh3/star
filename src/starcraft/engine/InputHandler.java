@@ -15,8 +15,11 @@ import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 
+import java.util.Comparator;
 public class InputHandler extends MouseAdapter implements KeyListener {
     private final GamePanel panel;
+    private static final int DOUBLE_CLICK_SELECT_LIMIT = 12;
+    private static final double DOUBLE_CLICK_SELECT_RADIUS = 140.0;
     private final ArrayList<Unit> units;
 
     public Point startPoint, endPoint;
@@ -106,6 +109,11 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                     isDragging = false;
                     startPoint = null;
                     endPoint = null;
+                } else if (clickedUnit != null && e.getClickCount() >= 2) {
+                    selectNearbySameTypeUnits(clickedUnit);
+                    isDragging = false;
+                    startPoint = null;
+                    endPoint = null;
                 } else {
                     panel.clearSelections();
                     startPoint = new Point(worldX, worldY);
@@ -157,6 +165,40 @@ public class InputHandler extends MouseAdapter implements KeyListener {
             }
         }
         return null;
+    }
+
+    private void selectNearbySameTypeUnits(Unit clickedUnit) {
+        if (clickedUnit == null || clickedUnit.hp <= 0) return;
+
+        panel.clearSelections();
+        for (Unit u : units) {
+            u.isSelected = false;
+        }
+
+        if (clickedUnit.team != 0) {
+            clickedUnit.isSelected = true;
+            return;
+        }
+
+        ArrayList<Unit> matches = new ArrayList<>();
+        for (Unit u : units) {
+            if (u.hp <= 0) continue;
+            if (u.team != clickedUnit.team) continue;
+            if (u.getClass() != clickedUnit.getClass()) continue;
+
+            double dist = vectorMath.getDistance(clickedUnit.x, clickedUnit.y, u.x, u.y);
+            if (dist <= DOUBLE_CLICK_SELECT_RADIUS) {
+                matches.add(u);
+            }
+        }
+
+        matches.sort(Comparator.comparingDouble(u ->
+                vectorMath.getDistance(clickedUnit.x, clickedUnit.y, u.x, u.y)));
+
+        int limit = Math.min(DOUBLE_CLICK_SELECT_LIMIT, matches.size());
+        for (int j = 0; j < limit; j++) {
+            matches.get(j).isSelected = true;
+        }
     }
 
     @Override
@@ -227,25 +269,32 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                 }
             }
         } else {
-            boolean friendFound = false;
-            for (Unit u : units) {
-                Rectangle unitRect = new Rectangle((int) u.x - u.size / 2, (int) u.y - u.size / 2, u.size, u.size);
+            ArrayList<Unit> friendlyMatches = new ArrayList<>();
+            ArrayList<Unit> enemyMatches = new ArrayList<>();
 
-                if (u.team == 0 && dragRect.intersects(unitRect)) {
-                    u.isSelected = true;
-                    friendFound = true;
+            for (Unit u : units) {
+                u.isSelected = false;
+                if (u.hp <= 0) continue;
+
+                Rectangle unitRect = new Rectangle((int) u.x - u.size / 2, (int) u.y - u.size / 2, u.size, u.size);
+                if (!dragRect.intersects(unitRect)) continue;
+
+                if (u.team == 0) {
+                    friendlyMatches.add(u);
                 } else {
-                    u.isSelected = false;
+                    enemyMatches.add(u);
                 }
             }
-            if (!friendFound) {
-                for (Unit u : units) {
-                    Rectangle unitRect = new Rectangle((int) u.x - u.size / 2, (int) u.y - u.size / 2, u.size, u.size);
-                    if (u.team != 0 && dragRect.intersects(unitRect)) {
-                        u.isSelected = true;
-                        break;
-                    }
+
+            if (!friendlyMatches.isEmpty()) {
+                friendlyMatches.sort(Comparator.comparingDouble(u -> vectorMath.getDistance(endPoint.x, endPoint.y, u.x, u.y)));
+                int limit = Math.min(DOUBLE_CLICK_SELECT_LIMIT, friendlyMatches.size());
+                for (int j = 0; j < limit; j++) {
+                    friendlyMatches.get(j).isSelected = true;
                 }
+            } else if (!enemyMatches.isEmpty()) {
+                enemyMatches.sort(Comparator.comparingDouble(u -> vectorMath.getDistance(endPoint.x, endPoint.y, u.x, u.y)));
+                enemyMatches.get(0).isSelected = true;
             }
         }
     }
