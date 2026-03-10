@@ -36,6 +36,7 @@ public class GamePanel extends JPanel {
     private final Timer gameLoop;
 
     private Building selectedBuilding;
+    private MineralPatch selectedMineral;
     private int cameraX = 0;
     private int cameraY = 0;
     private final int[] minerals = new int[]{500, 500};
@@ -432,10 +433,25 @@ public class GamePanel extends JPanel {
 
     public void selectBuilding(Building building) {
         this.selectedBuilding = building;
+        this.selectedMineral = null;
+    }
+
+    public void selectMineral(MineralPatch mineralPatch) {
+        this.selectedMineral = mineralPatch;
+        this.selectedBuilding = null;
     }
 
     public void clearBuildingSelection() {
         this.selectedBuilding = null;
+    }
+
+    public void clearMineralSelection() {
+        this.selectedMineral = null;
+    }
+
+    public void clearSelections() {
+        this.selectedBuilding = null;
+        this.selectedMineral = null;
     }
 
     public boolean handleUiLeftClick(int mouseX, int mouseY) {
@@ -544,6 +560,9 @@ public class GamePanel extends JPanel {
         } else if (selectedBuilding instanceof CommandCenter center) {
             g.drawString("Command Center", status.x + 12, status.y + 20);
             g.drawString("Queue: " + center.getQueuedUnits(), status.x + 12, status.y + 40);
+        } else if (selectedMineral != null && !selectedMineral.isDepleted()) {
+            g.drawString("Mineral Patch", status.x + 12, status.y + 20);
+            g.drawString("Remaining: " + selectedMineral.getRemaining(), status.x + 12, status.y + 40);
         } else {
             g.drawString("Status", status.x + 12, status.y + 20);
             g.drawString("Select unit/building", status.x + 12, status.y + 40);
@@ -594,6 +613,17 @@ public class GamePanel extends JPanel {
         gWorld.translate(-cameraX, -cameraY);
 
         for (MineralPatch patch : mineralPatches) {
+            if (patch == selectedMineral && !patch.isDepleted()) {
+                Stroke oldStroke = gWorld.getStroke();
+                gWorld.setColor(Color.YELLOW);
+                gWorld.setStroke(new BasicStroke(1f));
+                int ovalWidth = (int) Math.round(patch.getRadius() * 2.5);
+                int ovalHeight = (int) Math.round(patch.getRadius() * 1.9);
+                int ovalX = (int) Math.round(patch.getX() - ovalWidth / 2.0);
+                int ovalY = (int) Math.round(patch.getY() - ovalHeight / 2.0 + 2);
+                gWorld.drawOval(ovalX, ovalY, ovalWidth, ovalHeight);
+                gWorld.setStroke(oldStroke);
+            }
             patch.draw(gWorld);
         }
 

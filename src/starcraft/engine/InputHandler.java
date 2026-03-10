@@ -90,7 +90,7 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                         u.manualOrder = false;
                     }
                 }
-                panel.clearBuildingSelection();
+                panel.clearSelections();
                 aKeyPressed = false;
                 panel.setCursor(Cursor.getDefaultCursor());
             } else {
@@ -100,15 +100,21 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                     isDragging = false;
                     startPoint = null;
                     endPoint = null;
+                } else if (clickedMineral != null) {
+                    for (Unit u : units) u.isSelected = false;
+                    panel.selectMineral(clickedMineral);
+                    isDragging = false;
+                    startPoint = null;
+                    endPoint = null;
                 } else {
-                    panel.clearBuildingSelection();
+                    panel.clearSelections();
                     startPoint = new Point(worldX, worldY);
                     endPoint = new Point(worldX, worldY);
                     isDragging = true;
                 }
             }
         } else if (e.getButton() == MouseEvent.BUTTON3) {
-            panel.clearBuildingSelection();
+            panel.clearSelections();
             for (Unit u : units) {
                 if (!u.isSelected) continue;
                 u.isMoving = true;
@@ -210,12 +216,13 @@ public class InputHandler extends MouseAdapter implements KeyListener {
         int height = Math.abs(startPoint.y - endPoint.y);
         Rectangle dragRect = new Rectangle(x, y, width, height);
 
+        panel.clearSelections();
+
         if (width < 5 && height < 5) {
             for (Unit u : units) u.isSelected = false;
             for (Unit u : units) {
                 if (Math.sqrt(Math.pow(u.x - endPoint.x, 2) + Math.pow(u.y - endPoint.y, 2)) < u.size) {
                     u.isSelected = true;
-                    panel.clearBuildingSelection();
                     break;
                 }
             }
@@ -239,9 +246,6 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                         break;
                     }
                 }
-            }
-            if (friendFound) {
-                panel.clearBuildingSelection();
             }
         }
     }

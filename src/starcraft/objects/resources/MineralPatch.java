@@ -10,7 +10,9 @@ import java.util.Comparator;
 import java.util.List;
 
 public class MineralPatch {
-    private static final Image IMAGE = loadImage("/starcraft/res/minerals.PNG");
+    private static final Image HIGH_IMAGE = loadImage("/starcraft/res/minerals_750~1500.PNG");
+    private static final Image MID_IMAGE = loadImage("/starcraft/res/minerals_374-750.png");
+    private static final Image LOW_IMAGE = loadImage("/starcraft/res/minerals_1-374.png");
     private static final double HARVEST_DISTANCE = 40.0;
     private static final double WAIT_DISTANCE = 60.0;
     private static final int WAIT_SLOT_COUNT = 6;
@@ -257,9 +259,10 @@ public class MineralPatch {
         int drawX = (int) (x - radius);
         int drawY = (int) (y - radius);
         int size = radius * 2;
+        Image image = getStageImage();
 
-        if (IMAGE != null) {
-            g.drawImage(IMAGE, drawX, drawY, size, size, null);
+        if (image != null) {
+            g.drawImage(image, drawX, drawY, size, size, null);
         } else {
             Color body = isDepleted() ? new Color(70, 90, 100) : new Color(60, 190, 255);
             Color edge = isDepleted() ? new Color(90, 110, 120) : new Color(160, 240, 255);
@@ -273,6 +276,19 @@ public class MineralPatch {
         }
 
         drawHitEffect(g);
+    }
+
+    private Image getStageImage() {
+        if (remaining >= 750) {
+            return HIGH_IMAGE;
+        }
+        if (remaining >= 374) {
+            return MID_IMAGE;
+        }
+        if (remaining > 0) {
+            return LOW_IMAGE;
+        }
+        return null;
     }
 
     private void drawHitEffect(Graphics g) {
@@ -321,3 +337,4 @@ public class MineralPatch {
         }
     }
 }
+
