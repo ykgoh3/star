@@ -8,19 +8,19 @@ import java.awt.*;
 public class CommandCenter extends UnitFactoryBuilding {
 
     public CommandCenter(int x, int y, int team) {
-        super(x, y, team, 84, 84, 1500, 60, 20, 18);
+        super(x, y, team, 117, 83, 1500, 60, 20, 26);
         this.image = loadImage("/starcraft/res/command_center.png");
     }
 
-    // Keep side collision mostly intact, but open top/bottom more for worker drop-off.
+    // Keep the blocking footprint tighter than the sprite so workers can return from nearby edges.
     @Override
     public int getPathingBlockWidth() {
-        return Math.max(20, width - 30);
+        return Math.max(20, width - 56);
     }
 
     @Override
     public int getPathingBlockHeight() {
-        return Math.max(20, height - 50);
+        return Math.max(20, height - 32);
     }
 
     // Worker production queue.

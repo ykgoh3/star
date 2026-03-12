@@ -18,6 +18,8 @@ public class Hydralisk extends Unit {
         this.range = 130;
         this.speed = 2.8;
         this.size = 22;
+        this.drawWidth = 21;
+        this.drawHeight = 23;
         this.image = loadImage("/starcraft/res/hydralisk.png");
     }
 
@@ -85,10 +87,10 @@ public class Hydralisk extends Unit {
         if (image != null) {
             double lookX = x + Math.cos(lookAngle);
             double lookY = y + Math.sin(lookAngle);
-            RenderUtils.drawRotatedImage(g, image, x, y, size, lookX, lookY);
+            RenderUtils.drawRotatedImage(g, image, x, y, getDrawWidth(), getDrawHeight(), lookX, lookY);
         } else {
             g.setColor(team == 0 ? new Color(80, 180, 255) : new Color(180, 255, 120));
-            g.fillOval((int) x - size / 2, (int) y - size / 2, size, size);
+            g.fillOval((int) Math.round(x - getDrawWidth() / 2.0), (int) Math.round(y - getDrawHeight() / 2.0), getDrawWidth(), getDrawHeight());
         }
 
         drawAttackEffect(g, lookAngle);

@@ -617,10 +617,10 @@ public class GamePanel extends JPanel {
                 Stroke oldStroke = gWorld.getStroke();
                 gWorld.setColor(Color.YELLOW);
                 gWorld.setStroke(new BasicStroke(1f));
-                int ovalWidth = (int) Math.round(patch.getRadius() * 2.5);
-                int ovalHeight = (int) Math.round(patch.getRadius() * 1.9);
+                int ovalWidth = (int) Math.round(patch.getDrawWidth() * 1.1);
+                int ovalHeight = (int) Math.round(patch.getDrawHeight() * 1.45);
                 int ovalX = (int) Math.round(patch.getX() - ovalWidth / 2.0);
-                int ovalY = (int) Math.round(patch.getY() - ovalHeight / 2.0 + 2);
+                int ovalY = (int) Math.round(patch.getY() - ovalHeight / 2.0 + 3);
                 gWorld.drawOval(ovalX, ovalY, ovalWidth, ovalHeight);
                 gWorld.setStroke(oldStroke);
             }
@@ -628,12 +628,19 @@ public class GamePanel extends JPanel {
         }
 
         for (Building building : buildings) {
-            building.draw(gWorld);
             if (building == selectedBuilding) {
                 Rectangle r = building.getBounds();
-                gWorld.setColor(Color.YELLOW);
-                gWorld.drawRect(r.x - 2, r.y - 2, r.width + 4, r.height + 4);
+                Stroke oldStroke = gWorld.getStroke();
+                gWorld.setColor(building.getTeam() == 0 ? Color.GREEN : Color.RED);
+                gWorld.setStroke(new BasicStroke(1.0f));
+                int ovalWidth = (int) Math.round(r.width * 1.08);
+                int ovalHeight = Math.max(16, (int) Math.round(r.height * 0.52));
+                int ovalX = (int) Math.round(building.getX() - ovalWidth / 2.0);
+                int ovalY = (int) Math.round(building.getY() - ovalHeight / 2.0 + r.height * 0.22);
+                gWorld.drawOval(ovalX, ovalY, ovalWidth, ovalHeight);
+                gWorld.setStroke(oldStroke);
             }
+            building.draw(gWorld);
         }
 
         units.sort((u1, u2) -> Double.compare(u1.y, u2.y));

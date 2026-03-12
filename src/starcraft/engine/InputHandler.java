@@ -128,6 +128,7 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                 u.isMoving = true;
 
                 if (u instanceof SCV scv && clickedMineral != null) {
+                    clickedMineral.triggerCommandRing();
                     scv.startMining(clickedMineral, panel.findNearestCommandCenter(scv.x, scv.y, scv.team), panel);
                     continue;
                 }
@@ -159,8 +160,7 @@ public class InputHandler extends MouseAdapter implements KeyListener {
     private Unit findClickedUnit(int worldX, int worldY) {
         for (Unit u : units) {
             if (u.hp <= 0) continue;
-            double dist = vectorMath.getDistance(worldX, worldY, u.x, u.y);
-            if (dist <= u.size) {
+            if (u.containsPoint(worldX, worldY)) {
                 return u;
             }
         }
@@ -263,7 +263,7 @@ public class InputHandler extends MouseAdapter implements KeyListener {
         if (width < 5 && height < 5) {
             for (Unit u : units) u.isSelected = false;
             for (Unit u : units) {
-                if (Math.sqrt(Math.pow(u.x - endPoint.x, 2) + Math.pow(u.y - endPoint.y, 2)) < u.size) {
+                if (u.containsPoint(endPoint.x, endPoint.y)) {
                     u.isSelected = true;
                     break;
                 }
@@ -276,7 +276,7 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                 u.isSelected = false;
                 if (u.hp <= 0) continue;
 
-                Rectangle unitRect = new Rectangle((int) u.x - u.size / 2, (int) u.y - u.size / 2, u.size, u.size);
+                Rectangle unitRect = u.getSelectionBounds();
                 if (!dragRect.intersects(unitRect)) continue;
 
                 if (u.team == 0) {

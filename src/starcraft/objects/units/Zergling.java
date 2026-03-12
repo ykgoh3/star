@@ -16,7 +16,9 @@ public class Zergling extends Unit {
         this.attackDelay = 15;
         this.range = 30;
         this.speed = 3.5;
-        this.size = 18;
+        this.size = 16;
+        this.drawWidth = 16;
+        this.drawHeight = 16;
         this.image = loadImage("/starcraft/res/zergling.png");
     }
 
@@ -41,10 +43,10 @@ public class Zergling extends Unit {
             if (image != null) {
                 double lookX = drawX + Math.cos(lookAngle);
                 double lookY = drawY + Math.sin(lookAngle);
-                RenderUtils.drawRotatedImage(g, image, drawX, drawY, size, lookX, lookY);
+                RenderUtils.drawRotatedImage(g, image, drawX, drawY, getDrawWidth(), getDrawHeight(), lookX, lookY);
             } else {
                 g.setColor(team == 0 ? Color.ORANGE : Color.MAGENTA);
-                g.fillOval(drawX - size / 2, drawY - size / 2, size, size);
+                g.fillOval((int) Math.round(drawX - getDrawWidth() / 2.0), (int) Math.round(drawY - getDrawHeight() / 2.0), getDrawWidth(), getDrawHeight());
             }
         }
     }
@@ -64,10 +66,10 @@ public class Zergling extends Unit {
             if (image != null) {
                 double lookX = x + Math.cos(lookAngle);
                 double lookY = y + Math.sin(lookAngle);
-                RenderUtils.drawRotatedImage(g, image, x, y, size, lookX, lookY);
+                RenderUtils.drawRotatedImage(g, image, x, y, getDrawWidth(), getDrawHeight(), lookX, lookY);
             } else {
                 g.setColor(team == 0 ? Color.ORANGE : Color.MAGENTA);
-                g.fillOval((int) x - size / 2, (int) y - size / 2, size, size);
+                g.fillOval((int) Math.round(x - getDrawWidth() / 2.0), (int) Math.round(y - getDrawHeight() / 2.0), getDrawWidth(), getDrawHeight());
             }
         }
 

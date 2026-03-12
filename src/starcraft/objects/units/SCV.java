@@ -39,7 +39,9 @@ public class SCV extends Unit {
         this.attackDelay = 18;
         this.range = 28;
         this.speed = 2.0;
-        this.size = 24;
+        this.size = 23;
+        this.drawWidth = 23;
+        this.drawHeight = 23;
         this.image = loadImage("/starcraft/res/scv.png");
     }
 
@@ -285,34 +287,28 @@ public class SCV extends Unit {
 
         double cx = returnCenter.getX();
         double cy = returnCenter.getY();
-        double halfW = returnCenter.getWidth() / 2.0;
-        double halfH = returnCenter.getHeight() / 2.0;
+        double halfW = returnCenter.getPathingBlockWidth() / 2.0;
+        double halfH = returnCenter.getPathingBlockHeight() / 2.0;
 
         double dx = x - cx;
         double dy = y - cy;
 
         if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) {
-            dx = 1.0;
+            dy = 1.0;
         }
 
-        double tx;
-        double ty;
-        if (Math.abs(dx) >= Math.abs(dy)) {
-            tx = cx + Math.signum(dx) * (halfW + RETURN_APPROACH_MARGIN);
-            ty = cy + clamp(dy, -halfH, halfH);
-        } else {
-            tx = cx + clamp(dx, -halfW, halfW);
-            ty = cy + Math.signum(dy) * (halfH + RETURN_APPROACH_MARGIN);
-        }
-
+        double tx = cx + clamp(dx, -halfW * 0.45, halfW * 0.45);
+        double ty = cy + Math.signum(dy) * (halfH + RETURN_APPROACH_MARGIN);
         return new double[]{tx, ty};
     }
 
     private double distanceToBuildingEdge(CommandCenter center) {
         if (center == null) return Double.MAX_VALUE;
 
-        double dx = Math.max(Math.abs(x - center.getX()) - center.getWidth() / 2.0, 0.0);
-        double dy = Math.max(Math.abs(y - center.getY()) - center.getHeight() / 2.0, 0.0);
+        double dropOffHalfW = Math.max(center.getPathingBlockWidth() / 2.0, center.getWidth() / 2.0 - 10.0);
+        double dropOffHalfH = Math.max(center.getPathingBlockHeight() / 2.0, center.getHeight() / 2.0 - 8.0);
+        double dx = Math.max(Math.abs(x - center.getX()) - dropOffHalfW, 0.0);
+        double dy = Math.max(Math.abs(y - center.getY()) - dropOffHalfH, 0.0);
         return Math.sqrt(dx * dx + dy * dy);
     }
 
@@ -393,10 +389,10 @@ public class SCV extends Unit {
         if (image != null) {
             double lookX = x + Math.cos(lookAngle);
             double lookY = y + Math.sin(lookAngle);
-            RenderUtils.drawRotatedImage(g, image, x, y, size, lookX, lookY);
+            RenderUtils.drawRotatedImage(g, image, x, y, getDrawWidth(), getDrawHeight(), lookX, lookY);
         } else {
             g.setColor(team == 0 ? new Color(180, 180, 90) : new Color(170, 120, 80));
-            g.fillOval((int) x - size / 2, (int) y - size / 2, size, size);
+            g.fillOval((int) Math.round(x - getDrawWidth() / 2.0), (int) Math.round(y - getDrawHeight() / 2.0), getDrawWidth(), getDrawHeight());
         }
 
         if (carryMinerals > 0) {

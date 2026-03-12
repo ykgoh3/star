@@ -16,12 +16,13 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 public abstract class Unit {
+    private static final double RENDER_SCALE = 1.2;
     public int commandState = 0; // 0: idle, 1: attack-move, 2: move
     public double destX, destY;
     public boolean aKeyPressed = false;
 
     public double x, y, targetX, targetY;
-    public int team, size, hp, maxHp, damage, attackDelay, attackTimer;
+    public int team, size, drawWidth, drawHeight, hp, maxHp, damage, attackDelay, attackTimer;
     public double speed, range;
     public boolean isSelected = false, isMoving = false, manualOrder = false;
     public boolean autoRetaliating = false;
@@ -67,6 +68,28 @@ public abstract class Unit {
         this.team = team;
         this.lastX = x;
         this.lastY = y;
+    }
+
+    public int getDrawWidth() {
+        int baseWidth = (drawWidth > 0) ? drawWidth : size;
+        return Math.max(1, (int) Math.round(baseWidth * RENDER_SCALE));
+    }
+
+    public int getDrawHeight() {
+        int baseHeight = (drawHeight > 0) ? drawHeight : size;
+        return Math.max(1, (int) Math.round(baseHeight * RENDER_SCALE));
+    }
+
+    public Rectangle getSelectionBounds() {
+        int width = getDrawWidth();
+        int height = getDrawHeight();
+        return new Rectangle((int) Math.round(x - width / 2.0), (int) Math.round(y - height / 2.0), width, height);
+    }
+
+    public boolean containsPoint(int worldX, int worldY) {
+        double dx = (worldX - x) / Math.max(1.0, getDrawWidth() / 2.0);
+        double dy = (worldY - y) / Math.max(1.0, getDrawHeight() / 2.0);
+        return dx * dx + dy * dy <= 1.0;
     }
 
     public void update(List<Unit> allUnits, TerrainGrid terrain) {
@@ -522,7 +545,7 @@ public abstract class Unit {
 
     protected void drawHealthBar(Graphics g) {
         if (this.isSelected) {
-            RenderUtils.drawHealthBar(g, x, y, size, hp, maxHp, this.team);
+            RenderUtils.drawHealthBar(g, x, y, getDrawWidth(), getDrawHeight(), hp, maxHp, this.team);
         }
     }
 

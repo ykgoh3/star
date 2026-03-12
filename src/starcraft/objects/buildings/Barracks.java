@@ -8,7 +8,7 @@ import java.awt.*;
 public class Barracks extends UnitFactoryBuilding {
 
     public Barracks(int x, int y, int team) {
-        super(x, y, team, 56, 48, 1000, 30, 20, 14);
+        super(x, y, team, 105, 73, 1000, 30, 20, 24);
         this.image = loadImage("/starcraft/res/barracks.png");
     }
 

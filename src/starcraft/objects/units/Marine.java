@@ -15,7 +15,9 @@ public class Marine extends Unit {
         this.attackDelay = 15;
         this.range = 140;
         this.speed = 2.2;
-        this.size = 20;
+        this.size = 18;
+        this.drawWidth = 17;
+        this.drawHeight = 20;
         this.image = loadImage("/starcraft/res/marine.png");
     }
 
@@ -43,10 +45,10 @@ public class Marine extends Unit {
         if (image != null) {
             double lookX = x + Math.cos(lookAngle);
             double lookY = y + Math.sin(lookAngle);
-            RenderUtils.drawRotatedImage(g, image, x, y, size, lookX, lookY);
+            RenderUtils.drawRotatedImage(g, image, x, y, getDrawWidth(), getDrawHeight(), lookX, lookY);
         } else {
             g.setColor(team == 0 ? Color.BLUE : Color.RED);
-            g.fillOval((int) x - size / 2, (int) y - size / 2, size, size);
+            g.fillOval((int) Math.round(x - getDrawWidth() / 2.0), (int) Math.round(y - getDrawHeight() / 2.0), getDrawWidth(), getDrawHeight());
         }
 
         drawAttackEffect(g, lookAngle);

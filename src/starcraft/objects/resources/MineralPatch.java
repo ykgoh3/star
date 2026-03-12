@@ -19,6 +19,9 @@ public class MineralPatch {
     private static final int ACTIVE_WORKER_LIMIT = 1;
     private static final int HARVEST_DIRECTION_COUNT = 4;
     private static final int PATHING_RADIUS = 14;
+    private static final int DRAW_WIDTH = 64;
+    private static final int DRAW_HEIGHT = 32;
+    private static final int COMMAND_RING_TOTAL_TICKS = 20;
     private static final Point2D.Double[] HARVEST_SLOT_OFFSETS = new Point2D.Double[]{
             new Point2D.Double(0.0, -HARVEST_DISTANCE),
             new Point2D.Double(HARVEST_DISTANCE, 0.0),
@@ -36,6 +39,7 @@ public class MineralPatch {
     private final List<Unit> unavailableWorkers = new ArrayList<>();
 
     private int hitEffectTimer = 0;
+    private int commandRingTimer = 0;
     private Color hitEffectColor = new Color(130, 220, 255);
     private int hitEffectStyle = 2;
 
@@ -56,6 +60,14 @@ public class MineralPatch {
 
     public int getRadius() {
         return radius;
+    }
+
+    public int getDrawWidth() {
+        return DRAW_WIDTH;
+    }
+
+    public int getDrawHeight() {
+        return DRAW_HEIGHT;
     }
 
     public int getPathingRadius() {
@@ -243,6 +255,10 @@ public class MineralPatch {
         return Point2D.distance(pointX, pointY, center.getX(), center.getY());
     }
 
+    public void triggerCommandRing() {
+        commandRingTimer = COMMAND_RING_TOTAL_TICKS;
+    }
+
     public void triggerHitEffect(Color color, int style, int duration) {
         this.hitEffectColor = (color != null) ? color : new Color(130, 220, 255);
         this.hitEffectStyle = style;
@@ -250,31 +266,33 @@ public class MineralPatch {
     }
 
     public boolean contains(int worldX, int worldY) {
-        double dx = worldX - x;
-        double dy = worldY - y;
-        return dx * dx + dy * dy <= radius * radius;
+        double dx = (worldX - x) / (DRAW_WIDTH / 2.0);
+        double dy = (worldY - y) / (DRAW_HEIGHT / 2.0);
+        return dx * dx + dy * dy <= 1.0;
     }
 
     public void draw(Graphics g) {
-        int drawX = (int) (x - radius);
-        int drawY = (int) (y - radius);
-        int size = radius * 2;
+        int drawX = (int) Math.round(x - DRAW_WIDTH / 2.0);
+        int drawY = (int) Math.round(y - DRAW_HEIGHT / 2.0);
+        int drawWidth = DRAW_WIDTH;
+        int drawHeight = DRAW_HEIGHT;
         Image image = getStageImage();
 
         if (image != null) {
-            g.drawImage(image, drawX, drawY, size, size, null);
+            g.drawImage(image, drawX, drawY, drawWidth, drawHeight, null);
         } else {
             Color body = isDepleted() ? new Color(70, 90, 100) : new Color(60, 190, 255);
             Color edge = isDepleted() ? new Color(90, 110, 120) : new Color(160, 240, 255);
 
             g.setColor(new Color(0, 0, 0, 90));
-            g.fillOval(drawX + 2, drawY + 3, size, size);
+            g.fillOval(drawX + 2, drawY + 2, drawWidth, drawHeight);
             g.setColor(body);
-            g.fillOval(drawX, drawY, size, size);
+            g.fillOval(drawX, drawY, drawWidth, drawHeight);
             g.setColor(edge);
-            g.drawOval(drawX, drawY, size, size);
+            g.drawOval(drawX, drawY, drawWidth, drawHeight);
         }
 
+        drawCommandRing(g);
         drawHitEffect(g);
     }
 
@@ -291,6 +309,28 @@ public class MineralPatch {
         return null;
     }
 
+    private void drawCommandRing(Graphics g) {
+        if (commandRingTimer <= 0) return;
+
+        int phase = COMMAND_RING_TOTAL_TICKS - commandRingTimer;
+        boolean visible = phase <= 5;
+        if (visible) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            Stroke oldStroke = g2.getStroke();
+            g2.setColor(Color.YELLOW);
+            g2.setStroke(new BasicStroke(1.2f));
+
+            int ovalWidth = (int) Math.round(getDrawWidth() * 1.1);
+            int ovalHeight = (int) Math.round(getDrawHeight() * 1.45);
+            int ovalX = (int) Math.round(x - ovalWidth / 2.0);
+            int ovalY = (int) Math.round(y - ovalHeight / 2.0 + 3);
+            g2.drawOval(ovalX, ovalY, ovalWidth, ovalHeight);
+            g2.setStroke(oldStroke);
+            g2.dispose();
+        }
+
+        commandRingTimer--;
+    }
     private void drawHitEffect(Graphics g) {
         if (hitEffectTimer <= 0) return;
 
