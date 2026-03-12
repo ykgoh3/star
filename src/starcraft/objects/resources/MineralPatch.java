@@ -1,7 +1,7 @@
 package starcraft.objects.resources;
 
 import starcraft.objects.Unit;
-import starcraft.objects.buildings.CommandCenter;
+import starcraft.objects.buildings.terran.CommandCenter;
 
 import java.awt.*;
 import java.awt.geom.Point2D;
@@ -331,6 +331,7 @@ public class MineralPatch {
 
         commandRingTimer--;
     }
+
     private void drawHitEffect(Graphics g) {
         if (hitEffectTimer <= 0) return;
 
@@ -377,4 +378,3 @@ public class MineralPatch {
         }
     }
 }
-

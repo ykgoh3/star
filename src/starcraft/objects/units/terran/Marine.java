@@ -1,4 +1,4 @@
-package starcraft.objects.units;
+package starcraft.objects.units.terran;
 
 import starcraft.engine.RenderUtils;
 import starcraft.objects.Unit;

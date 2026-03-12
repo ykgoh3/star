@@ -22,7 +22,7 @@ public abstract class Unit {
     public boolean aKeyPressed = false;
 
     public double x, y, targetX, targetY;
-    public int team, size, drawWidth, drawHeight, hp, maxHp, damage, attackDelay, attackTimer;
+    public int team, size, drawWidth, drawHeight, hp, maxHp, damage, armor, attackDelay, attackTimer;
     public double speed, range;
     public boolean isSelected = false, isMoving = false, manualOrder = false;
     public boolean autoRetaliating = false;
@@ -37,6 +37,7 @@ public abstract class Unit {
     public int sideRecheckTimer = 0;
 
     public int deathTimer = 300;
+    public int killCount = 0;
     public int postAttackDelayTimer = 0;
 
     public double lastX, lastY;
@@ -196,7 +197,11 @@ public abstract class Unit {
 
         double dist = vectorMath.getDistance(x, y, target.x, target.y);
         if (dist <= range + 5) {
+            int targetHpBefore = target.hp;
             target.hp -= damage;
+            if (targetHpBefore > 0 && target.hp <= 0) {
+                killCount++;
+            }
 
             if (target.hp > 0 && target.team != this.team) {
                 if (canAutoRetaliate(target)) {

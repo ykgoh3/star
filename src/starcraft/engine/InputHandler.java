@@ -5,7 +5,7 @@ import starcraft.objects.Unit;
 import starcraft.objects.buildings.Building;
 import starcraft.objects.logic.StopLogic;
 import starcraft.objects.resources.MineralPatch;
-import starcraft.objects.units.SCV;
+import starcraft.objects.units.terran.SCV;
 
 import java.awt.*;
 import java.awt.event.KeyEvent;
@@ -14,8 +14,8 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-
 import java.util.Comparator;
+
 public class InputHandler extends MouseAdapter implements KeyListener {
     private final GamePanel panel;
     private static final int DOUBLE_CLICK_SELECT_LIMIT = 12;
@@ -59,6 +59,8 @@ public class InputHandler extends MouseAdapter implements KeyListener {
             return;
         }
 
+        panel.updateUiHoverPoint(e.getX(), e.getY());
+
         if (panel.isInUiArea(e.getX(), e.getY())) {
             isDragging = false;
             startPoint = null;
@@ -93,7 +95,7 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                         u.manualOrder = false;
                     }
                 }
-                panel.clearSelections();
+                panel.clearSelections(false);
                 aKeyPressed = false;
                 panel.setCursor(Cursor.getDefaultCursor());
             } else {
@@ -111,6 +113,7 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                     endPoint = null;
                 } else if (clickedUnit != null && e.getClickCount() >= 2) {
                     selectNearbySameTypeUnits(clickedUnit);
+                    panel.captureSelectedUnitOrder();
                     isDragging = false;
                     startPoint = null;
                     endPoint = null;
@@ -122,7 +125,7 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                 }
             }
         } else if (e.getButton() == MouseEvent.BUTTON3) {
-            panel.clearSelections();
+            panel.clearSelections(false);
             for (Unit u : units) {
                 if (!u.isSelected) continue;
                 u.isMoving = true;
@@ -177,6 +180,7 @@ public class InputHandler extends MouseAdapter implements KeyListener {
 
         if (clickedUnit.team != 0) {
             clickedUnit.isSelected = true;
+            panel.captureSelectedUnitOrder();
             return;
         }
 
@@ -199,6 +203,7 @@ public class InputHandler extends MouseAdapter implements KeyListener {
         for (int j = 0; j < limit; j++) {
             matches.get(j).isSelected = true;
         }
+        panel.captureSelectedUnitOrder();
     }
 
     @Override
@@ -213,7 +218,20 @@ public class InputHandler extends MouseAdapter implements KeyListener {
     }
 
     @Override
+    public void mouseMoved(MouseEvent e) {
+        panel.updateUiHoverPoint(e.getX(), e.getY());
+        panel.repaint();
+    }
+
+    @Override
+    public void mouseExited(MouseEvent e) {
+        panel.updateUiHoverPoint(-1, -1);
+        panel.repaint();
+    }
+
+    @Override
     public void mouseDragged(MouseEvent e) {
+        panel.updateUiHoverPoint(e.getX(), e.getY());
         if (isDragging) {
             int clampedScreenY = Math.min(e.getY(), panel.getUiBarTop() - 1);
             int worldX = panel.screenToWorldX(e.getX());
@@ -265,6 +283,7 @@ public class InputHandler extends MouseAdapter implements KeyListener {
             for (Unit u : units) {
                 if (u.containsPoint(endPoint.x, endPoint.y)) {
                     u.isSelected = true;
+                    panel.captureSelectedUnitOrder();
                     break;
                 }
             }
@@ -292,9 +311,11 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                 for (int j = 0; j < limit; j++) {
                     friendlyMatches.get(j).isSelected = true;
                 }
+                panel.captureSelectedUnitOrder();
             } else if (!enemyMatches.isEmpty()) {
                 enemyMatches.sort(Comparator.comparingDouble(u -> vectorMath.getDistance(endPoint.x, endPoint.y, u.x, u.y)));
                 enemyMatches.get(0).isSelected = true;
+                panel.captureSelectedUnitOrder();
             }
         }
     }

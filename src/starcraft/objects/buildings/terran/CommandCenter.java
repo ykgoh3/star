@@ -1,7 +1,8 @@
-package starcraft.objects.buildings;
+package starcraft.objects.buildings.terran;
 
 import starcraft.objects.Unit;
-import starcraft.objects.units.SCV;
+import starcraft.objects.buildings.UnitFactoryBuilding;
+import starcraft.objects.units.terran.SCV;
 
 import java.awt.*;
 

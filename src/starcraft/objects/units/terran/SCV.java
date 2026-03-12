@@ -1,10 +1,10 @@
-package starcraft.objects.units;
+package starcraft.objects.units.terran;
 
 import starcraft.core.GamePanel;
 import starcraft.engine.RenderUtils;
 import starcraft.engine.vectorMath;
 import starcraft.objects.Unit;
-import starcraft.objects.buildings.CommandCenter;
+import starcraft.objects.buildings.terran.CommandCenter;
 import starcraft.objects.resources.MineralPatch;
 
 import java.awt.*;

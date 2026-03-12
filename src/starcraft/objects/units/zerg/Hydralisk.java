@@ -1,4 +1,4 @@
-package starcraft.objects.units;
+package starcraft.objects.units.zerg;
 
 import starcraft.core.GamePanel;
 import starcraft.engine.RenderUtils;

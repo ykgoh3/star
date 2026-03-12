@@ -3,18 +3,19 @@ package starcraft.core;
 import starcraft.engine.InputHandler;
 import starcraft.engine.vectorMath;
 import starcraft.objects.Unit;
-import starcraft.objects.buildings.Barracks;
+import starcraft.objects.buildings.terran.Barracks;
 import starcraft.objects.buildings.Building;
-import starcraft.objects.buildings.CommandCenter;
+import starcraft.objects.buildings.terran.CommandCenter;
 import starcraft.objects.resources.MineralPatch;
-import starcraft.objects.units.Hydralisk;
-import starcraft.objects.units.Marine;
-import starcraft.objects.units.SCV;
-import starcraft.objects.units.Zergling;
+import starcraft.objects.units.zerg.Hydralisk;
+import starcraft.objects.units.terran.Marine;
+import starcraft.objects.units.terran.SCV;
+import starcraft.objects.units.zerg.Zergling;
 
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
+import java.awt.image.BufferedImage;
 import java.util.List;
 
 public class GamePanel extends JPanel {
@@ -29,6 +30,7 @@ public class GamePanel extends JPanel {
     private static final double MINERAL_CLUSTER_RANGE = 180.0;
 
     private final ArrayList<Unit> units = new ArrayList<>();
+    private final ArrayList<Unit> selectedUnitOrder = new ArrayList<>();
     private final ArrayList<Building> buildings = new ArrayList<>();
     private final ArrayList<MineralPatch> mineralPatches = new ArrayList<>();
     private final InputHandler inputHandler;
@@ -37,6 +39,8 @@ public class GamePanel extends JPanel {
 
     private Building selectedBuilding;
     private MineralPatch selectedMineral;
+    private int uiHoverX = -1;
+    private int uiHoverY = -1;
     private int cameraX = 0;
     private int cameraY = 0;
     private final int[] minerals = new int[]{500, 500};
@@ -299,7 +303,7 @@ public class GamePanel extends JPanel {
     public Rectangle getStatusPanelRect() {
         Rectangle mini = getMinimapRect();
         Rectangle control = getControlPanelRect();
-        int gap = 10;
+        int gap = 12;
         int x = mini.x + mini.width + gap;
         int width = Math.max(120, control.x - gap - x);
 
@@ -315,6 +319,306 @@ public class GamePanel extends JPanel {
         return new Rectangle(getWidth() - 220, 10, 210, 32);
     }
 
+    private Unit getPrimarySelectedUnit() {
+        for (Unit unit : units) {
+            if (unit.isSelected && unit.hp > 0) {
+                return unit;
+            }
+        }
+        return null;
+    }
+
+
+    private List<Unit> getSelectedUnits() {
+        ArrayList<Unit> selected = new ArrayList<>();
+        for (Unit unit : selectedUnitOrder) {
+            if (unit != null && unit.isSelected && unit.hp > 0 && !selected.contains(unit)) {
+                selected.add(unit);
+            }
+        }
+        for (Unit unit : units) {
+            if (unit.isSelected && unit.hp > 0 && !selected.contains(unit)) {
+                selected.add(unit);
+            }
+        }
+        return selected;
+    }
+
+    public void captureSelectedUnitOrder() {
+        selectedUnitOrder.clear();
+        for (Unit unit : units) {
+            if (unit.isSelected && unit.hp > 0) {
+                selectedUnitOrder.add(unit);
+            }
+        }
+    }
+
+    public void updateUiHoverPoint(int mouseX, int mouseY) {
+        this.uiHoverX = mouseX;
+        this.uiHoverY = mouseY;
+    }
+
+    private void drawUnitPortrait(Graphics g, Rectangle box, Unit unit) {
+        if (unit == null || box.width <= 4 || box.height <= 4) return;
+
+        BufferedImage mask = new BufferedImage(box.width, box.height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D pg = mask.createGraphics();
+        pg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        int spriteW = Math.max(1, unit.getDrawWidth());
+        int spriteH = Math.max(1, unit.getDrawHeight());
+        double scale = Math.min((box.width - 8) / (double) spriteW, (box.height - 8) / (double) spriteH);
+        int drawW = Math.max(1, (int) Math.round(spriteW * scale));
+        int drawH = Math.max(1, (int) Math.round(spriteH * scale));
+        int drawX = (box.width - drawW) / 2;
+        int drawY = (box.height - drawH) / 2;
+
+        if (unit.image != null) {
+            pg.drawImage(unit.image, drawX, drawY, drawW, drawH, null);
+        } else {
+            pg.setColor(Color.WHITE);
+            pg.fillOval(drawX, drawY, drawW, drawH);
+        }
+        pg.dispose();
+
+        Color baseColor = getPortraitBaseColor(unit);
+        BufferedImage portrait = new BufferedImage(box.width, box.height, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < box.height; y++) {
+            for (int x = 0; x < box.width; x++) {
+                int alpha = (mask.getRGB(x, y) >>> 24) & 0xFF;
+                if (alpha == 0) continue;
+
+                double nx = (x - box.width * 0.35) / box.width;
+                double ny = (y - box.height * 0.3) / box.height;
+                double radial = Math.max(0.0, 1.0 - Math.sqrt(nx * nx + ny * ny) * 2.0);
+                double topLight = Math.max(0.0, 1.0 - (double) y / box.height);
+                double leftLight = Math.max(0.0, 1.0 - (double) x / box.width);
+                double shade = 0.2 + radial * 0.45 + topLight * 0.25 + leftLight * 0.1;
+                shade = Math.max(0.1, Math.min(1.0, shade));
+
+                int r = (int) Math.round(baseColor.getRed() * (0.45 + 0.55 * shade));
+                int gCol = (int) Math.round(baseColor.getGreen() * (0.45 + 0.55 * shade));
+                int b = (int) Math.round(baseColor.getBlue() * (0.45 + 0.55 * shade));
+                portrait.setRGB(x, y, (alpha << 24) | (r << 16) | (gCol << 8) | b);
+            }
+        }
+
+        g.drawImage(portrait, box.x, box.y, null);
+    }
+
+    private void drawMultiSelectedUnits(Graphics g, Rectangle status, List<Unit> selectedUnits) {
+        if (selectedUnits == null || selectedUnits.isEmpty()) return;
+
+        int availableHeight = Math.max(24, status.height - 20);
+        int slotSize = Math.min(availableHeight / 2 - 6, 44);
+        if (slotSize <= 8) return;
+
+        int startX = status.x + 12;
+        int startY = status.y + 10;
+        int rows = 2;
+
+        for (int iSel = 0; iSel < selectedUnits.size(); iSel++) {
+            Unit unit = selectedUnits.get(iSel);
+            int col = iSel / rows;
+            int row = iSel % rows;
+            int cellX = startX + col * (slotSize + 8);
+            int cellY = startY + row * (slotSize + 8);
+            Rectangle cell = new Rectangle(cellX, cellY, slotSize, slotSize);
+
+            g.setColor(new Color(40, 80, 180));
+            g.drawRect(cell.x, cell.y, cell.width, cell.height);
+            drawUnitPortrait(g, cell, unit);
+        }
+    }
+    private String getUnitDisplayName(Unit unit) {
+        if (unit instanceof SCV) return "SCV";
+        if (unit instanceof Marine) return "Marine";
+        if (unit instanceof Hydralisk) return "Hydralisk";
+        if (unit instanceof Zergling) return "Zergling";
+        return "Unit";
+    }
+    private Color getPortraitBaseColor(Unit unit) {
+        double hpRatio = (unit == null || unit.maxHp <= 0) ? 1.0 : Math.max(0.0, Math.min(1.0, (double) unit.hp / unit.maxHp));
+        if (hpRatio > 0.66) return new Color(70, 185, 25);
+        if (hpRatio > 0.33) return new Color(210, 175, 30);
+        return new Color(195, 45, 30);
+    }
+
+
+    private void drawSelectedUnitSilhouette(Graphics g, Rectangle status, Unit unit) {
+        if (unit == null) return;
+
+        int boxSize = Math.min(status.height - 16, 72);
+        if (boxSize <= 12) return;
+
+        int boxX = status.x + 12;
+        int boxY = status.y + (status.height - boxSize) / 2;
+
+
+
+        BufferedImage mask = new BufferedImage(boxSize, boxSize, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D pg = mask.createGraphics();
+        pg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        int spriteW = Math.max(1, unit.getDrawWidth());
+        int spriteH = Math.max(1, unit.getDrawHeight());
+        double scale = Math.min((boxSize - 12) / (double) spriteW, (boxSize - 12) / (double) spriteH);
+        int drawW = Math.max(1, (int) Math.round(spriteW * scale));
+        int drawH = Math.max(1, (int) Math.round(spriteH * scale));
+        int drawX = (boxSize - drawW) / 2;
+        int drawY = (boxSize - drawH) / 2;
+
+        if (unit.image != null) {
+            pg.drawImage(unit.image, drawX, drawY, drawW, drawH, null);
+        } else {
+            pg.setColor(Color.WHITE);
+            pg.fillOval(drawX, drawY, drawW, drawH);
+        }
+        pg.dispose();
+
+        Color baseColor = getPortraitBaseColor(unit);
+        BufferedImage portrait = new BufferedImage(boxSize, boxSize, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < boxSize; y++) {
+            for (int x = 0; x < boxSize; x++) {
+                int alpha = (mask.getRGB(x, y) >>> 24) & 0xFF;
+                if (alpha == 0) continue;
+
+                double nx = (x - boxSize * 0.35) / boxSize;
+                double ny = (y - boxSize * 0.3) / boxSize;
+                double radial = Math.max(0.0, 1.0 - Math.sqrt(nx * nx + ny * ny) * 2.0);
+                double topLight = Math.max(0.0, 1.0 - (double) y / boxSize);
+                double leftLight = Math.max(0.0, 1.0 - (double) x / boxSize);
+                double shade = 0.2 + radial * 0.45 + topLight * 0.25 + leftLight * 0.1;
+                shade = Math.max(0.1, Math.min(1.0, shade));
+
+                int r = (int) Math.round(baseColor.getRed() * (0.45 + 0.55 * shade));
+                int gCol = (int) Math.round(baseColor.getGreen() * (0.45 + 0.55 * shade));
+                int b = (int) Math.round(baseColor.getBlue() * (0.45 + 0.55 * shade));
+                int rgba = (alpha << 24) | (r << 16) | (gCol << 8) | b;
+                portrait.setRGB(x, y, rgba);
+            }
+        }
+
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.drawImage(portrait, boxX, boxY, null);
+        g2.dispose();
+    }
+    private Rectangle getArmorIconBounds(Rectangle status) {
+        int iconSize = 39;
+        int gap = 12;
+        int totalWidth = iconSize * 2 + gap;
+        int startX = status.x + (status.width - totalWidth) / 2;
+        int y = status.y + status.height - iconSize - 16;
+        return new Rectangle(startX, y, iconSize, iconSize);
+    }
+
+    private Rectangle getAttackIconBounds(Rectangle status) {
+        Rectangle armor = getArmorIconBounds(status);
+        return new Rectangle(armor.x + armor.width + 10, armor.y, armor.width, armor.height);
+    }
+
+    private void drawStatIconBox(Graphics2D g2, Rectangle rect) {
+        g2.setColor(new Color(44, 44, 44));
+        g2.fillRect(rect.x, rect.y, rect.width, rect.height);
+        g2.setColor(new Color(110, 110, 110));
+        g2.drawRect(rect.x, rect.y, rect.width, rect.height);
+
+        int lineY = rect.y + rect.height - 11;
+        int diagonalStartX = rect.x + rect.width - 10;
+        int diagonalEndX = rect.x + rect.width - 23;
+        int diagonalEndY = rect.y + rect.height - 1;
+        g2.setColor(new Color(90, 90, 90));
+        g2.drawLine(rect.x + rect.width - 1, lineY, diagonalStartX, lineY);
+        g2.drawLine(diagonalStartX, lineY, diagonalEndX, diagonalEndY);
+    }
+
+    private void drawUpgradeLevel(Graphics2D g2, Rectangle rect, int level) {
+        String text = Integer.toString(level);
+        Font originalFont = g2.getFont();
+        g2.setFont(originalFont.deriveFont(Font.BOLD, 10f));
+        FontMetrics fm = g2.getFontMetrics();
+        int textX = rect.x + rect.width - fm.stringWidth(text) - 4;
+        int textY = rect.y + rect.height - 2;
+        g2.setColor(Color.BLACK);
+        g2.drawString(text, textX + 1, textY + 1);
+        g2.setColor(Color.WHITE);
+        g2.drawString(text, textX, textY);
+        g2.setFont(originalFont);
+    }
+
+    private void drawArmorIcon(Graphics2D g2, Rectangle rect) {
+        drawStatIconBox(g2, rect);
+        int cx = rect.x + rect.width / 2 - 4;
+        int top = rect.y + 7;
+        Polygon shield = new Polygon(
+                new int[]{cx, rect.x + rect.width - 15, rect.x + rect.width - 17, cx, rect.x + 10, rect.x + 8},
+                new int[]{top, top + 5, rect.y + rect.height - 13, rect.y + rect.height - 7, rect.y + rect.height - 13, top + 5},
+                6
+        );
+        g2.setColor(new Color(110, 190, 255));
+        g2.fillPolygon(shield);
+        g2.setColor(new Color(210, 240, 255));
+        g2.drawPolygon(shield);
+        g2.drawLine(cx, top + 4, cx, rect.y + rect.height - 10);
+        drawUpgradeLevel(g2, rect, 0);
+    }
+
+    private void drawAttackIcon(Graphics2D g2, Rectangle rect) {
+        drawStatIconBox(g2, rect);
+        int x1 = rect.x + 10;
+        int y1 = rect.y + rect.height - 10;
+        int x2 = rect.x + rect.width - 15;
+        int y2 = rect.y + 10;
+        g2.setColor(new Color(255, 170, 70));
+        g2.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g2.drawLine(x1, y1, x2, y2);
+        g2.setColor(new Color(255, 225, 150));
+        Polygon tip = new Polygon(new int[]{x2, x2 + 6, x2 - 5}, new int[]{y2 - 6, y2, y2 + 5}, 3);
+        g2.fillPolygon(tip);
+        g2.setColor(new Color(160, 110, 60));
+        g2.drawLine(x1 - 2, y1 + 2, x1 + 5, y1 + 9);
+        drawUpgradeLevel(g2, rect, 0);
+    }
+
+    private void drawStatTooltip(Graphics g, Rectangle anchor, String label, int value) {
+        String text = label + ": " + value;
+        FontMetrics fm = g.getFontMetrics();
+        int width = fm.stringWidth(text) + 14;
+        int height = 22;
+        int x = anchor.x + anchor.width / 2 - width / 2;
+        int y = anchor.y - height - 6;
+        Rectangle status = getStatusPanelRect();
+        if (x < status.x + 4) x = status.x + 4;
+        if (x + width > status.x + status.width - 4) x = status.x + status.width - width - 4;
+        if (y < status.y + 4) y = anchor.y + anchor.height + 6;
+
+        g.setColor(new Color(18, 18, 18));
+        g.fillRect(x, y, width, height);
+        g.setColor(new Color(170, 170, 170));
+        g.drawRect(x, y, width, height);
+        g.setColor(Color.WHITE);
+        g.drawString(text, x + 7, y + 15);
+    }
+
+    private void drawUnitStatIcons(Graphics g, Rectangle status, Unit unit) {
+        if (unit == null) return;
+
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        Rectangle armorRect = getArmorIconBounds(status);
+        Rectangle attackRect = getAttackIconBounds(status);
+        drawArmorIcon(g2, armorRect);
+        drawAttackIcon(g2, attackRect);
+        g2.dispose();
+
+        Point hover = new Point(uiHoverX, uiHoverY);
+        if (armorRect.contains(hover)) {
+            drawStatTooltip(g, armorRect, "Armor", unit.armor);
+        } else if (attackRect.contains(hover)) {
+            drawStatTooltip(g, attackRect, "Damage", unit.damage);
+        }
+    }
     public Building findBuildingAtWorld(int worldX, int worldY) {
         for (int i = buildings.size() - 1; i >= 0; i--) {
             Building b = buildings.get(i);
@@ -434,11 +738,13 @@ public class GamePanel extends JPanel {
     public void selectBuilding(Building building) {
         this.selectedBuilding = building;
         this.selectedMineral = null;
+        this.selectedUnitOrder.clear();
     }
 
     public void selectMineral(MineralPatch mineralPatch) {
         this.selectedMineral = mineralPatch;
         this.selectedBuilding = null;
+        this.selectedUnitOrder.clear();
     }
 
     public void clearBuildingSelection() {
@@ -450,8 +756,15 @@ public class GamePanel extends JPanel {
     }
 
     public void clearSelections() {
+        clearSelections(true);
+    }
+
+    public void clearSelections(boolean clearUnitOrder) {
         this.selectedBuilding = null;
         this.selectedMineral = null;
+        if (clearUnitOrder) {
+            this.selectedUnitOrder.clear();
+        }
     }
 
     public boolean handleUiLeftClick(int mouseX, int mouseY) {
@@ -549,12 +862,26 @@ public class GamePanel extends JPanel {
         g.drawString("Minimap", minimap.x + 8, minimap.y + 16);
 
         Rectangle status = getStatusPanelRect();
+        List<Unit> selectedUnits = getSelectedUnits();
+        Unit selectedUnit = selectedUnits.isEmpty() ? null : selectedUnits.get(0);
         g.setColor(new Color(28, 28, 28));
         g.fillRect(status.x, status.y, status.width, status.height);
         g.setColor(new Color(120, 120, 120));
         g.drawRect(status.x, status.y, status.width, status.height);
         g.setColor(Color.WHITE);
-        if (selectedBuilding instanceof Barracks barracks) {
+        if (selectedUnits.size() > 1) {
+            drawMultiSelectedUnits(g, status, selectedUnits);
+        } else if (selectedUnit != null) {
+            int statusCenterX = status.x + status.width / 2;
+            String unitName = getUnitDisplayName(selectedUnit);
+            String killsText = "Kills: " + selectedUnit.killCount;
+            FontMetrics fm = g.getFontMetrics();
+            g.drawString(unitName, statusCenterX - fm.stringWidth(unitName) / 2, status.y + 20);
+            g.drawString(killsText, statusCenterX - fm.stringWidth(killsText) / 2, status.y + 42);
+            drawSelectedUnitSilhouette(g, status, selectedUnit);
+            g.drawString("HP: " + selectedUnit.hp + " / " + selectedUnit.maxHp, status.x + 12, status.y + status.height - 12);
+            drawUnitStatIcons(g, status, selectedUnit);
+        } else if (selectedBuilding instanceof Barracks barracks) {
             g.drawString("Barracks", status.x + 12, status.y + 20);
             g.drawString("Queue: " + barracks.getQueuedUnits(), status.x + 12, status.y + 40);
         } else if (selectedBuilding instanceof CommandCenter center) {
@@ -663,3 +990,4 @@ public class GamePanel extends JPanel {
         drawBottomUiBar(g);
     }
 }
+
