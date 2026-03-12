@@ -2,7 +2,9 @@ package starcraft.core;
 
 import starcraft.engine.InputHandler;
 import starcraft.engine.vectorMath;
+import starcraft.objects.Attackable;
 import starcraft.objects.Unit;
+import starcraft.objects.buildings.ConstructionSite;
 import starcraft.objects.buildings.terran.Barracks;
 import starcraft.objects.buildings.Building;
 import starcraft.objects.buildings.terran.CommandCenter;
@@ -19,6 +21,12 @@ import java.awt.image.BufferedImage;
 import java.util.List;
 
 public class GamePanel extends JPanel {
+    private enum BuildPlacementType {
+        NONE,
+        COMMAND_CENTER,
+        BARRACKS
+    }
+
     public static final int BASE_WIDTH = 800;
     public static final int BASE_HEIGHT = 600;
     public static final int UI_BAR_HEIGHT = 150;
@@ -39,6 +47,10 @@ public class GamePanel extends JPanel {
 
     private Building selectedBuilding;
     private MineralPatch selectedMineral;
+    private boolean scvBuildMenuOpen = false;
+    private BuildPlacementType buildPlacementType = BuildPlacementType.NONE;
+    private final Image previewCommandCenterImage = loadUiImage("/starcraft/res/command_center.png");
+    private final Image previewBarracksImage = loadUiImage("/starcraft/res/barracks.png");
     private int uiHoverX = -1;
     private int uiHoverY = -1;
     private int cameraX = 0;
@@ -111,12 +123,12 @@ public class GamePanel extends JPanel {
             Unit u = units.get(i);
 
             if (!u.manualOrder) {
-                boolean targetDead = (u.target != null) && (u.target.hp <= 0);
+                boolean targetDead = (u.target != null) && !u.target.isAlive();
                 boolean noValidTarget = (u.target == null) || targetDead;
 
                 if (u.autoRetaliating) {
                     if (noValidTarget) {
-                        Unit nearest = findNearestEnemyInRange(u, u.range + 200);
+                        Attackable nearest = findNearestEnemyInRange(u, u.range + 200);
                         if (nearest == null) {
                             nearest = findNearestEnemyInRange(u, Double.MAX_VALUE);
                         }
@@ -128,7 +140,7 @@ public class GamePanel extends JPanel {
                         }
                     }
                 } else if (u.commandState == 0) {
-                    Unit nearest = findNearestEnemyInRange(u, u.range + 20);
+                    Attackable nearest = findNearestEnemyInRange(u, u.range + 20);
                     u.target = nearest;
 
                     if (nearest != null) {
@@ -137,7 +149,7 @@ public class GamePanel extends JPanel {
                         u.destY = u.y;
                     }
                 } else if (u.commandState == 1 && noValidTarget) {
-                    Unit nearest = findNearestEnemyInRange(u, u.range + 20);
+                    Attackable nearest = findNearestEnemyInRange(u, u.range + 20);
                     if (nearest != null) {
                         u.target = nearest;
                     } else if (targetDead) {
@@ -151,7 +163,7 @@ public class GamePanel extends JPanel {
                         }
                     }
                 }
-            } else if (u.target != null && u.target.hp <= 0) {
+            } else if (u.target != null && !u.target.isAlive()) {
                 u.target = null;
             }
 
@@ -237,7 +249,7 @@ public class GamePanel extends JPanel {
     private void refreshBuildingBlockers() {
         terrain.clearBlocked();
         for (Building building : buildings) {
-            if (building.isDestroyed()) continue;
+            if (building.isDestroyed() || building instanceof ConstructionSite) continue;
             terrain.blockRectWorld(
                     building.getX(),
                     building.getY(),
@@ -253,17 +265,31 @@ public class GamePanel extends JPanel {
         }
     }
 
-    private Unit findNearestEnemyInRange(Unit me, double maxRange) {
-        Unit closest = null;
-        double minDist = maxRange;
+    private Attackable findNearestEnemyInRange(Unit me, double maxRange) {
+        Attackable closest = null;
+        double closestDistance = maxRange;
+        boolean closestIsUnit = false;
+        final double unitPrioritySlack = 18.0;
 
         for (Unit enemy : units) {
-            if (enemy.team != me.team && enemy.hp > 0) {
-                double d = vectorMath.getDistance(me.x, me.y, enemy.x, enemy.y);
-                if (d < minDist) {
-                    minDist = d;
-                    closest = enemy;
-                }
+            if (enemy.team == me.team || enemy.hp <= 0) continue;
+            double d = vectorMath.getDistance(me.x, me.y, enemy.x, enemy.y);
+            if (d > maxRange) continue;
+            if (closest == null || d < closestDistance || (!closestIsUnit && d <= closestDistance + unitPrioritySlack)) {
+                closest = enemy;
+                closestDistance = d;
+                closestIsUnit = true;
+            }
+        }
+
+        for (Building building : buildings) {
+            if (building.getTeam() == me.team || building.isDestroyed()) continue;
+            double d = vectorMath.getDistance(me.x, me.y, building.getX(), building.getY());
+            if (d > maxRange) continue;
+            if (closest == null || (!closestIsUnit && d < closestDistance)) {
+                closest = building;
+                closestDistance = d;
+                closestIsUnit = false;
             }
         }
 
@@ -782,11 +808,29 @@ public class GamePanel extends JPanel {
                 center.enqueueWorker();
                 return true;
             }
+        } else {
+            Unit selectedUnit = getPrimarySelectedUnit();
+            if (selectedUnit instanceof SCV) {
+                if (scvBuildMenuOpen) {
+                    if (getScvCommandCenterBuildButtonBounds().contains(mouseX, mouseY)) {
+                        scvBuildMenuOpen = false;
+                        buildPlacementType = BuildPlacementType.COMMAND_CENTER;
+                        return true;
+                    }
+                    if (getScvBarracksBuildButtonBounds().contains(mouseX, mouseY)) {
+                        scvBuildMenuOpen = false;
+                        buildPlacementType = BuildPlacementType.BARRACKS;
+                        return true;
+                    }
+                } else if (getScvBuildButtonBounds().contains(mouseX, mouseY)) {
+                    scvBuildMenuOpen = true;
+                    return true;
+                }
+            }
         }
 
         return false;
     }
-
     private Rectangle getControlCellBounds(int col, int row) {
         Rectangle control = getControlPanelRect();
 
@@ -811,6 +855,18 @@ public class GamePanel extends JPanel {
 
     private Rectangle getScvButtonBounds() {
         return getControlCellBounds(0, 0);
+    }
+
+    private Rectangle getScvBuildButtonBounds() {
+        return getControlCellBounds(0, 2);
+    }
+
+    private Rectangle getScvCommandCenterBuildButtonBounds() {
+        return getControlCellBounds(0, 0);
+    }
+
+    private Rectangle getScvBarracksBuildButtonBounds() {
+        return getControlCellBounds(0, 1);
     }
 
     private void drawTopRightResources(Graphics g) {
@@ -884,9 +940,15 @@ public class GamePanel extends JPanel {
         } else if (selectedBuilding instanceof Barracks barracks) {
             g.drawString("Barracks", status.x + 12, status.y + 20);
             g.drawString("Queue: " + barracks.getQueuedUnits(), status.x + 12, status.y + 40);
+            g.drawString("HP: " + barracks.getHp() + " / " + barracks.getMaxHp(), status.x + 12, status.y + status.height - 12);
         } else if (selectedBuilding instanceof CommandCenter center) {
             g.drawString("Command Center", status.x + 12, status.y + 20);
             g.drawString("Queue: " + center.getQueuedUnits(), status.x + 12, status.y + 40);
+            g.drawString("HP: " + center.getHp() + " / " + center.getMaxHp(), status.x + 12, status.y + status.height - 12);
+        } else if (selectedBuilding instanceof ConstructionSite site) {
+            g.drawString(site.getDisplayName(), status.x + 12, status.y + 20);
+            g.drawString("Build: " + (int) Math.round(site.getBuildProgress() * 100) + "%", status.x + 12, status.y + 40);
+            g.drawString("HP: " + site.getHp() + " / " + site.getMaxHp(), status.x + 12, status.y + status.height - 12);
         } else if (selectedMineral != null && !selectedMineral.isDepleted()) {
             g.drawString("Mineral Patch", status.x + 12, status.y + 20);
             g.drawString("Remaining: " + selectedMineral.getRemaining(), status.x + 12, status.y + 40);
@@ -916,6 +978,255 @@ public class GamePanel extends JPanel {
             g.setColor(Color.WHITE);
             g.drawRect(cell.x, cell.y, cell.width, cell.height);
             g.drawString("SCV", cell.x + 10, cell.y + Math.max(14, cell.height / 2 + 4));
+        } else if (selectedUnit instanceof SCV) {
+            if (scvBuildMenuOpen) {
+                Rectangle commandCell = getScvCommandCenterBuildButtonBounds();
+                g.setColor(new Color(70, 100, 165));
+                g.fillRect(commandCell.x, commandCell.y, commandCell.width, commandCell.height);
+                g.setColor(Color.WHITE);
+                g.drawRect(commandCell.x, commandCell.y, commandCell.width, commandCell.height);
+                g.drawString("CC", commandCell.x + 18, commandCell.y + Math.max(14, commandCell.height / 2 + 4));
+
+                Rectangle barracksCell = getScvBarracksBuildButtonBounds();
+                g.setColor(new Color(70, 100, 165));
+                g.fillRect(barracksCell.x, barracksCell.y, barracksCell.width, barracksCell.height);
+                g.setColor(Color.WHITE);
+                g.drawRect(barracksCell.x, barracksCell.y, barracksCell.width, barracksCell.height);
+                g.drawString("Rax", barracksCell.x + 11, barracksCell.y + Math.max(14, barracksCell.height / 2 + 4));
+            } else {
+                Rectangle cell = getScvBuildButtonBounds();
+                g.setColor(new Color(70, 100, 165));
+                g.fillRect(cell.x, cell.y, cell.width, cell.height);
+                g.setColor(Color.WHITE);
+                g.drawRect(cell.x, cell.y, cell.width, cell.height);
+                g.drawString("Build", cell.x + 7, cell.y + Math.max(14, cell.height / 2 + 4));
+            }
+        }
+    }
+
+    public boolean isBuildPlacementActive() {
+        return buildPlacementType != BuildPlacementType.NONE;
+    }
+
+    public void cancelBuildPlacement() {
+        buildPlacementType = BuildPlacementType.NONE;
+        scvBuildMenuOpen = false;
+    }
+
+    private int getPlacementPreviewWidth() {
+        return switch (buildPlacementType) {
+            case COMMAND_CENTER -> CommandCenter.BUILD_WIDTH;
+            case BARRACKS -> Barracks.BUILD_WIDTH;
+            default -> 0;
+        };
+    }
+
+    private int getPlacementPreviewHeight() {
+        return switch (buildPlacementType) {
+            case COMMAND_CENTER -> CommandCenter.BUILD_HEIGHT;
+            case BARRACKS -> Barracks.BUILD_HEIGHT;
+            default -> 0;
+        };
+    }
+
+    private Image getPlacementPreviewImage() {
+        return switch (buildPlacementType) {
+            case COMMAND_CENTER -> previewCommandCenterImage;
+            case BARRACKS -> previewBarracksImage;
+            default -> null;
+        };
+    }
+
+    private int getPlacementPreviewOffsetX() {
+        return 0;
+    }
+
+    private int getPlacementPreviewOffsetY() {
+        return 0;
+    }
+    private Rectangle getPlacementPreviewRect(int worldX, int worldY) {
+        int width = getPlacementPreviewWidth();
+        int height = getPlacementPreviewHeight();
+        int cellSize = terrain.cellSize;
+        int rawX = (int) Math.round(worldX - width / 2.0);
+        int rawY = (int) Math.round(worldY - height / 2.0);
+        int snappedX = (int) Math.round(rawX / (double) cellSize) * cellSize;
+        int snappedY = (int) Math.round(rawY / (double) cellSize) * cellSize;
+        return new Rectangle(snappedX, snappedY, width, height);
+    }
+
+
+    private ConstructionSite.Type getCurrentConstructionType() {
+        return switch (buildPlacementType) {
+            case COMMAND_CENTER -> ConstructionSite.Type.COMMAND_CENTER;
+            case BARRACKS -> ConstructionSite.Type.BARRACKS;
+            default -> null;
+        };
+    }
+
+    public boolean canPlaceCurrentBuildAt(int worldX, int worldY) {
+        if (!isBuildPlacementActive()) return false;
+
+        Rectangle previewRect = getPlacementPreviewRect(worldX, worldY);
+        int cellSize = terrain.cellSize;
+        int minCellX = Math.max(0, (int) Math.floor(previewRect.x / (double) cellSize));
+        int maxCellX = Math.min(terrain.cols - 1, (int) Math.floor((previewRect.x + previewRect.width - 1) / (double) cellSize));
+        int minCellY = Math.max(0, (int) Math.floor(previewRect.y / (double) cellSize));
+        int maxCellY = Math.min(terrain.rows - 1, (int) Math.floor((previewRect.y + previewRect.height - 1) / (double) cellSize));
+
+        for (int cy = minCellY; cy <= maxCellY; cy++) {
+            for (int cx = minCellX; cx <= maxCellX; cx++) {
+                Rectangle cellRect = new Rectangle(cx * cellSize, cy * cellSize, cellSize, cellSize);
+                Rectangle overlap = previewRect.intersection(cellRect);
+                if (overlap.isEmpty()) continue;
+                if (isPlacementBlocked(cellRect, cx, cy)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    public boolean placeCurrentBuild(int worldX, int worldY) {
+        if (!isBuildPlacementActive()) return false;
+        Unit selectedUnit = getPrimarySelectedUnit();
+        if (!(selectedUnit instanceof SCV scv)) return false;
+        ConstructionSite.Type constructionType = getCurrentConstructionType();
+        if (constructionType == null) return false;
+        if (!canPlaceCurrentBuildAt(worldX, worldY)) return false;
+
+        int cost = ConstructionSite.getBuildCost(constructionType);
+        if (getMinerals(scv.team) < cost) {
+            return false;
+        }
+
+        Rectangle previewRect = getPlacementPreviewRect(worldX, worldY);
+        double buildCenterX = previewRect.x + previewRect.width / 2.0;
+        double buildCenterY = previewRect.y + previewRect.height / 2.0;
+        scv.startConstruction(constructionType, buildCenterX, buildCenterY);
+        buildPlacementType = BuildPlacementType.NONE;
+        scvBuildMenuOpen = false;
+        selectedBuilding = null;
+        selectedMineral = null;
+        return true;
+    }
+
+    public ConstructionSite beginConstructionSite(ConstructionSite.Type type, double centerX, double centerY, int team, SCV builder) {
+        if (type == null) return null;
+
+        int cost = ConstructionSite.getBuildCost(type);
+        if (!spendMinerals(team, cost)) {
+            return null;
+        }
+
+        ConstructionSite site = new ConstructionSite(centerX, centerY, team, type);
+        site.setBuilder(builder);
+        buildings.add(site);
+        return site;
+    }
+
+    public void finishConstruction(ConstructionSite site, Building completedBuilding) {
+        if (site == null || completedBuilding == null) return;
+        int index = buildings.indexOf(site);
+        if (index < 0) return;
+        buildings.set(index, completedBuilding);
+        if (selectedBuilding == site) {
+            selectedBuilding = completedBuilding;
+        }
+        SCV builder = site.getBuilder();
+        if (builder != null) {
+            builder.clearConstructionOrder();
+            builder.stop();
+        }
+    }
+    private boolean isPlacementBlocked(Rectangle overlap, int cellX, int cellY) {
+        if (cellX < 0 || cellX >= terrain.cols || cellY < 0 || cellY >= terrain.rows) {
+            return true;
+        }
+
+        for (Building building : buildings) {
+            if (building != null && !building.isDestroyed() && building.getBounds().intersects(overlap)) {
+                return true;
+            }
+        }
+
+        for (MineralPatch patch : mineralPatches) {
+            if (patch == null || patch.isDepleted()) continue;
+            Rectangle patchBounds = new Rectangle(
+                    (int) Math.round(patch.getX() - patch.getDrawWidth() / 2.0),
+                    (int) Math.round(patch.getY() - patch.getDrawHeight() / 2.0),
+                    patch.getDrawWidth(),
+                    patch.getDrawHeight()
+            );
+            if (patchBounds.intersects(overlap)) {
+                return true;
+            }
+        }
+
+        for (Unit unit : units) {
+            if (unit instanceof SCV && unit.isSelected) {
+                continue;
+            }
+            if (unit != null && unit.hp > 0 && unit.getSelectionBounds().intersects(overlap)) {
+                return true;
+            }
+        }
+
+        return !terrain.isWalkableCell(cellX, cellY);
+    }
+    private void drawBuildPlacementPreview(Graphics2D gWorld) {
+        if (!isBuildPlacementActive()) return;
+
+        Point mouse = getMousePosition();
+        if (mouse == null || isInUiArea(mouse.x, mouse.y)) return;
+
+        int worldX = screenToWorldX(mouse.x);
+        int worldY = screenToWorldY(mouse.y);
+        Rectangle previewRect = getPlacementPreviewRect(worldX, worldY);
+
+        Image previewImage = getPlacementPreviewImage();
+        Composite oldComposite = gWorld.getComposite();
+        gWorld.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.55f));
+        if (previewImage != null) {
+            gWorld.drawImage(previewImage, previewRect.x, previewRect.y, previewRect.width, previewRect.height, null);
+        }
+        gWorld.setComposite(oldComposite);
+
+        int cellSize = terrain.cellSize;
+        int minCellX = Math.max(0, (int) Math.floor(previewRect.x / (double) cellSize));
+        int maxCellX = Math.min(terrain.cols - 1, (int) Math.floor((previewRect.x + previewRect.width - 1) / (double) cellSize));
+        int minCellY = Math.max(0, (int) Math.floor(previewRect.y / (double) cellSize));
+        int maxCellY = Math.min(terrain.rows - 1, (int) Math.floor((previewRect.y + previewRect.height - 1) / (double) cellSize));
+
+        boolean allClear = true;
+        for (int cy = minCellY; cy <= maxCellY; cy++) {
+            for (int cx = minCellX; cx <= maxCellX; cx++) {
+                Rectangle cellRect = new Rectangle(cx * cellSize, cy * cellSize, cellSize, cellSize);
+                Rectangle overlap = previewRect.intersection(cellRect);
+                if (overlap.isEmpty()) continue;
+
+                boolean blocked = isPlacementBlocked(overlap, cx, cy);
+                if (blocked) {
+                    allClear = false;
+                    gWorld.setColor(new Color(210, 50, 50, 110));
+                } else {
+                    gWorld.setColor(new Color(70, 200, 90, 90));
+                }
+                gWorld.fillRect(overlap.x, overlap.y, overlap.width, overlap.height);
+                gWorld.setColor(blocked ? new Color(220, 80, 80, 170) : new Color(120, 230, 140, 150));
+                gWorld.drawRect(overlap.x, overlap.y, overlap.width, overlap.height);
+            }
+        }
+
+        gWorld.setColor(allClear ? new Color(120, 230, 140) : new Color(220, 90, 90));
+        gWorld.drawRect(previewRect.x, previewRect.y, previewRect.width, previewRect.height);
+    }
+
+    private Image loadUiImage(String path) {
+        try {
+            return javax.imageio.ImageIO.read(GamePanel.class.getResource(path));
+        } catch (Exception e) {
+            return null;
         }
     }
 
@@ -974,6 +1285,8 @@ public class GamePanel extends JPanel {
         for (Unit u : units) {
             u.draw(gWorld);
         }
+
+        drawBuildPlacementPreview(gWorld);
 
         if (inputHandler != null && inputHandler.isDragging && inputHandler.startPoint != null && inputHandler.endPoint != null) {
             gWorld.setColor(Color.GREEN);

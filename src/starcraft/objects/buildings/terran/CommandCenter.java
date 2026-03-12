@@ -7,9 +7,11 @@ import starcraft.objects.units.terran.SCV;
 import java.awt.*;
 
 public class CommandCenter extends UnitFactoryBuilding {
+    public static final int BUILD_WIDTH = 117;
+    public static final int BUILD_HEIGHT = 80;
 
     public CommandCenter(int x, int y, int team) {
-        super(x, y, team, 117, 83, 1500, 60, 20, 26);
+        super(x, y, team, BUILD_WIDTH, BUILD_HEIGHT, 1500, 60, 20, 26);
         this.image = loadImage("/starcraft/res/command_center.png");
     }
 

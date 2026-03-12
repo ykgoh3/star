@@ -4,6 +4,7 @@ import starcraft.core.GamePanel;
 import starcraft.engine.RenderUtils;
 import starcraft.engine.vectorMath;
 import starcraft.objects.Unit;
+import starcraft.objects.buildings.ConstructionSite;
 import starcraft.objects.buildings.terran.CommandCenter;
 import starcraft.objects.resources.MineralPatch;
 
@@ -20,6 +21,9 @@ public class SCV extends Unit {
     private static final double LOOP_ASSIGNMENT_RANGE = 44.0;
     private static final double JAM_ESCAPE_MARGIN = 4.0;
     private static final double JAM_REPATH_DISTANCE = 10.0;
+    private static final int CONSTRUCTION_TICK_INTERVAL = 6;
+    private static final int CONSTRUCTION_MOVE_INTERVAL = 30;
+    private static final double CONSTRUCTION_RANGE = 10.0;
 
     private MineralPatch requestedMineral;
     private MineralPatch mineralTarget;
@@ -30,6 +34,14 @@ public class SCV extends Unit {
     private boolean returningCargo = false;
     private boolean waitingForMineral = false;
     private boolean loopAssigned = false;
+
+    private ConstructionSite constructionSite;
+    private ConstructionSite.Type pendingConstructionType;
+    private double pendingConstructionX;
+    private double pendingConstructionY;
+    private int pendingBuildPointIndex = 0;
+    private int constructionTickTimer = 0;
+    private int constructionMoveTimer = 0;
 
     public SCV(int x, int y, int team) {
         super(x, y, team);
@@ -45,12 +57,140 @@ public class SCV extends Unit {
         this.image = loadImage("/starcraft/res/scv.png");
     }
 
+    public void startConstruction(ConstructionSite.Type type, double buildX, double buildY) {
+        if (type == null) return;
+
+        clearConstructionOrder();
+        clearHarvestOrder();
+        this.pendingConstructionType = type;
+        this.pendingConstructionX = buildX;
+        this.pendingConstructionY = buildY;
+        this.pendingBuildPointIndex = ConstructionSite.getNearestBuildPointIndex(type, buildX, buildY, x, y);
+        this.constructionTickTimer = CONSTRUCTION_TICK_INTERVAL;
+        this.constructionMoveTimer = CONSTRUCTION_MOVE_INTERVAL;
+        this.target = null;
+        this.manualOrder = true;
+        this.commandState = 2;
+        this.isMoving = true;
+
+        Point2D.Double buildPoint = ConstructionSite.getBuildPoint(type, buildX, buildY, pendingBuildPointIndex);
+        commandMove(buildPoint.x, buildPoint.y);
+    }
+
+    public void startConstruction(ConstructionSite site) {
+        if (site == null || site.isDestroyed() || site.isConstructionComplete()) return;
+
+        clearConstructionOrder();
+        clearHarvestOrder();
+        this.constructionSite = site;
+        this.pendingConstructionType = null;
+        this.pendingConstructionX = 0.0;
+        this.pendingConstructionY = 0.0;
+        this.pendingBuildPointIndex = ConstructionSite.getNearestBuildPointIndex(site.getType(), site.getX(), site.getY(), x, y);
+        this.constructionTickTimer = CONSTRUCTION_TICK_INTERVAL;
+        this.constructionMoveTimer = CONSTRUCTION_MOVE_INTERVAL;
+        this.target = null;
+        this.manualOrder = true;
+        this.commandState = 2;
+        this.isMoving = true;
+        site.setBuilder(this);
+        site.setBuildPointIndex(pendingBuildPointIndex);
+
+        Point2D.Double buildPoint = site.getCurrentBuildPoint();
+        commandMove(buildPoint.x, buildPoint.y);
+    }
+
+    public boolean isConstructing(ConstructionSite site) {
+        return site != null && constructionSite == site;
+    }
+
+    public void clearConstructionOrder() {
+        this.constructionSite = null;
+        this.pendingConstructionType = null;
+        this.pendingConstructionX = 0.0;
+        this.pendingConstructionY = 0.0;
+        this.pendingBuildPointIndex = 0;
+        this.constructionTickTimer = 0;
+        this.constructionMoveTimer = 0;
+    }
+
+    public void updateConstruction(GamePanel panel) {
+        if (panel == null) return;
+
+        if (constructionSite == null) {
+            if (pendingConstructionType == null) return;
+
+            Point2D.Double firstBuildPoint = ConstructionSite.getBuildPoint(
+                    pendingConstructionType,
+                    pendingConstructionX,
+                    pendingConstructionY,
+                    pendingBuildPointIndex
+            );
+            double distToStart = vectorMath.getDistance(x, y, firstBuildPoint.x, firstBuildPoint.y);
+            if (distToStart > CONSTRUCTION_RANGE) {
+                commandMove(firstBuildPoint.x, firstBuildPoint.y);
+                return;
+            }
+
+            stop();
+            manualOrder = true;
+            isMoving = false;
+            constructionSite = panel.beginConstructionSite(
+                    pendingConstructionType,
+                    pendingConstructionX,
+                    pendingConstructionY,
+                    team,
+                    this
+            );
+            if (constructionSite == null) {
+                clearConstructionOrder();
+                return;
+            }
+            constructionSite.setBuildPointIndex(pendingBuildPointIndex);
+            pendingConstructionType = null;
+        }
+
+        if (constructionSite.isDestroyed() || constructionSite.isConstructionComplete()) {
+            clearConstructionOrder();
+            return;
+        }
+
+        Point2D.Double buildPoint = constructionSite.getCurrentBuildPoint();
+        double dist = vectorMath.getDistance(x, y, buildPoint.x, buildPoint.y);
+        if (dist > CONSTRUCTION_RANGE) {
+            commandMove(buildPoint.x, buildPoint.y);
+            return;
+        }
+
+        stop();
+        manualOrder = true;
+        isMoving = false;
+        constructionTickTimer--;
+        constructionMoveTimer--;
+
+        if (constructionTickTimer <= 0) {
+            constructionTickTimer = CONSTRUCTION_TICK_INTERVAL;
+            hitEffectColor = new Color(255, 230, 150);
+            hitEffectStyle = 2;
+            hitEffectTimer = 3;
+            constructionSite.triggerHitEffect(new Color(255, 220, 140), 2, 3);
+        }
+
+        if (constructionMoveTimer <= 0) {
+            Point2D.Double nextPoint = constructionSite.advanceBuildPoint();
+            constructionMoveTimer = CONSTRUCTION_MOVE_INTERVAL;
+            commandMove(nextPoint.x, nextPoint.y);
+        }
+    }
+
     public void startMining(MineralPatch target, CommandCenter center, GamePanel panel) {
         if (target == null || target.isDepleted()) {
+            clearConstructionOrder();
             clearHarvestOrder();
             return;
         }
 
+        clearConstructionOrder();
         clearHarvestOrder();
 
         this.requestedMineral = target;
@@ -83,9 +223,15 @@ public class SCV extends Unit {
     }
 
     public void updateHarvest(GamePanel panel) {
+        if (constructionSite != null || pendingConstructionType != null) {
+            updateConstruction(panel);
+            return;
+        }
+
         if (panel == null || mineralTarget == null) return;
 
         if (mineralTarget.isDepleted()) {
+            clearConstructionOrder();
             clearHarvestOrder();
             return;
         }
@@ -243,6 +389,7 @@ public class SCV extends Unit {
             mineralTarget.resumeWorker(this);
             approachCurrentMineral();
         } else {
+            clearConstructionOrder();
             clearHarvestOrder();
         }
     }
@@ -333,6 +480,21 @@ public class SCV extends Unit {
 
     @Override
     protected double getLookAngle() {
+        if (constructionSite != null) {
+            Point2D.Double buildPoint = constructionSite.getCurrentBuildPoint();
+            return Math.atan2(buildPoint.y - y, buildPoint.x - x);
+        }
+
+        if (pendingConstructionType != null) {
+            Point2D.Double buildPoint = ConstructionSite.getBuildPoint(
+                    pendingConstructionType,
+                    pendingConstructionX,
+                    pendingConstructionY,
+                    pendingBuildPointIndex
+            );
+            return Math.atan2(buildPoint.y - y, buildPoint.x - x);
+        }
+
         if (mineralTarget != null) {
             if (carryMinerals > 0 && returnCenter != null) {
                 return Math.atan2(returnCenter.getY() - y, returnCenter.getX() - x);
@@ -355,13 +517,11 @@ public class SCV extends Unit {
 
     @Override
     public void attack(GamePanel panel) {
-        int prevHp = (target != null) ? target.hp : 0;
+        int prevHp = (target != null) ? target.getHp() : 0;
         super.attack(panel);
 
-        if (target != null && target.hp < prevHp) {
-            target.hitEffectColor = new Color(255, 230, 150);
-            target.hitEffectStyle = 2;
-            target.hitEffectTimer = 4;
+        if (target != null && target.getHp() < prevHp) {
+            target.triggerHitEffect(new Color(255, 230, 150), 2, 4);
         }
     }
 

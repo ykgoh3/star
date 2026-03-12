@@ -25,13 +25,11 @@ public class Hydralisk extends Unit {
 
     @Override
     public void attack(GamePanel panel) {
-        int prevHp = (target != null) ? target.hp : 0;
+        int prevHp = (target != null) ? target.getHp() : 0;
         super.attack(panel);
 
-        if (target != null && target.hp < prevHp) {
-            target.hitEffectColor = new Color(110, 255, 120);
-            target.hitEffectStyle = 1;
-            target.hitEffectTimer = 4;
+        if (target != null && target.getHp() < prevHp) {
+            target.triggerHitEffect(new Color(110, 255, 120), 1, 4);
         }
     }
 

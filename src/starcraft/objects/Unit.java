@@ -15,7 +15,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-public abstract class Unit {
+public abstract class Unit implements Attackable {
     private static final double RENDER_SCALE = 1.2;
     public int commandState = 0; // 0: idle, 1: attack-move, 2: move
     public double destX, destY;
@@ -26,7 +26,7 @@ public abstract class Unit {
     public double speed, range;
     public boolean isSelected = false, isMoving = false, manualOrder = false;
     public boolean autoRetaliating = false;
-    public Unit target;
+    public Attackable target;
 
     public double lastDistToTarget = 99999;
     public double velX = 0, velY = 0;
@@ -69,6 +69,42 @@ public abstract class Unit {
         this.team = team;
         this.lastX = x;
         this.lastY = y;
+    }
+
+    @Override
+    public double getTargetX() {
+        return x;
+    }
+
+    @Override
+    public double getTargetY() {
+        return y;
+    }
+
+    @Override
+    public int getHp() {
+        return hp;
+    }
+
+    public int getMaxHp() {
+        return maxHp;
+    }
+
+    @Override
+    public int getTeam() {
+        return team;
+    }
+
+    @Override
+    public void receiveDamage(int amount) {
+        hp -= amount;
+    }
+
+    @Override
+    public void triggerHitEffect(Color color, int style, int duration) {
+        hitEffectColor = (color != null) ? color : new Color(255, 255, 150);
+        hitEffectStyle = style;
+        hitEffectTimer = duration;
     }
 
     public int getDrawWidth() {
@@ -193,36 +229,36 @@ public abstract class Unit {
         if (Math.abs(velX) > 0.05 || Math.abs(velY) > 0.05) return;
 
         if (attackTimer > 0 || target == null) return;
-        if (target.hp <= 0) return;
+        if (!target.isAlive()) return;
 
-        double dist = vectorMath.getDistance(x, y, target.x, target.y);
+        double dist = vectorMath.getDistance(x, y, target.getTargetX(), target.getTargetY());
         if (dist <= range + 5) {
-            int targetHpBefore = target.hp;
-            target.hp -= damage;
-            if (targetHpBefore > 0 && target.hp <= 0) {
+            int targetHpBefore = target.getHp();
+            target.receiveDamage(damage);
+            if (targetHpBefore > 0 && target.getHp() <= 0) {
                 killCount++;
             }
 
-            if (target.hp > 0 && target.team != this.team) {
-                if (canAutoRetaliate(target)) {
-                    target.target = this;
-                    target.manualOrder = false;
-                    target.commandState = 1;
-                    target.isMoving = false;
-                    target.destX = target.x;
-                    target.destY = target.y;
-                    target.autoRetaliating = true;
+            if (target.getHp() > 0 && target.getTeam() != this.team) {
+                if (target instanceof Unit targetUnit && canAutoRetaliate(targetUnit)) {
+                    targetUnit.target = this;
+                    targetUnit.manualOrder = false;
+                    targetUnit.commandState = 1;
+                    targetUnit.isMoving = false;
+                    targetUnit.destX = targetUnit.x;
+                    targetUnit.destY = targetUnit.y;
+                    targetUnit.autoRetaliating = true;
                 }
-                alertNearbyAllies(target, panel);
+                if (target instanceof Unit targetUnit) {
+                    alertNearbyAllies(targetUnit, panel);
+                }
             }
 
             attackTimer = attackDelay;
 
             postAttackDelayTimer = 8;
             attackEffectTimer = 4;
-            target.hitEffectColor = new Color(255, 255, 150);
-            target.hitEffectStyle = 0;
-            target.hitEffectTimer = 4;
+            target.triggerHitEffect(new Color(255, 255, 150), 0, 4);
         }
     }
 
@@ -573,22 +609,22 @@ public abstract class Unit {
     }
 
     protected boolean isEngagingTarget() {
-        if (target == null || target.hp <= 0) return false;
-        double dist = vectorMath.getDistance(x, y, target.x, target.y);
+        if (target == null || !target.isAlive()) return false;
+        double dist = vectorMath.getDistance(x, y, target.getTargetX(), target.getTargetY());
         return dist <= range + 20;
     }
 
     protected double getLookAngle() {
         if (isEngagingTarget()) {
-            return Math.atan2(target.y - y, target.x - x);
+            return Math.atan2(target.getTargetY() - y, target.getTargetX() - x);
         }
 
         if (isMoving && (Math.abs(velX) > 0.01 || Math.abs(velY) > 0.01)) {
             return Math.atan2(velY, velX);
         }
 
-        if ((attackEffectTimer > 0 || postAttackDelayTimer > 0) && target != null && target.hp > 0) {
-            return Math.atan2(target.y - y, target.x - x);
+        if ((attackEffectTimer > 0 || postAttackDelayTimer > 0) && target != null && target.isAlive()) {
+            return Math.atan2(target.getTargetY() - y, target.getTargetX() - x);
         }
 
         return idleFacingRight ? 0.0 : Math.PI;

@@ -1,10 +1,11 @@
 package starcraft.objects.buildings;
 
 import starcraft.core.GamePanel;
+import starcraft.objects.Attackable;
 
 import java.awt.*;
 
-public abstract class Building {
+public abstract class Building implements Attackable {
     protected final int team;
     protected final int width;
     protected final int height;
@@ -42,6 +43,33 @@ public abstract class Building {
 
     public int getHeight() {
         return height;
+    }
+
+    public int getHp() {
+        return hp;
+    }
+
+    public int getMaxHp() {
+        return maxHp;
+    }
+
+    @Override
+    public double getTargetX() {
+        return x;
+    }
+
+    @Override
+    public double getTargetY() {
+        return y;
+    }
+
+    @Override
+    public void receiveDamage(int amount) {
+        hp -= amount;
+    }
+
+    @Override
+    public void triggerHitEffect(Color color, int style, int duration) {
     }
 
     public int getPathingPadding() {

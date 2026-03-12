@@ -28,8 +28,8 @@ public class MeleeAttackMoveLogic {
     }
 
     public static void execute(Unit unit, List<Unit> allUnits, TerrainGrid terrain) {
-        if (unit.target != null && unit.target.hp > 0) {
-            double dist = vectorMath.getDistance(unit.x, unit.y, unit.target.x, unit.target.y);
+        if (unit.target != null && unit.target.isAlive()) {
+            double dist = vectorMath.getDistance(unit.x, unit.y, unit.target.getTargetX(), unit.target.getTargetY());
 
             if (dist <= unit.range) {
                 unit.velX = 0;
@@ -37,7 +37,7 @@ public class MeleeAttackMoveLogic {
                 return;
             }
 
-            double targetAng = Math.atan2(unit.target.y - unit.y, unit.target.x - unit.x);
+            double targetAng = Math.atan2(unit.target.getTargetY() - unit.y, unit.target.getTargetX() - unit.x);
 
             if (unit.bypassDuration <= 0) {
                 double[] findHoleAngles = {0.52, -0.52, 1.04, -1.04, 1.57, -1.57, 2.09, -2.09, 2.61, -2.61};
@@ -105,8 +105,8 @@ public class MeleeAttackMoveLogic {
                 unit.resolveActiveOverlap(allUnits, terrain);
             }
 
-            unit.targetX = unit.target.x;
-            unit.targetY = unit.target.y;
+            unit.targetX = unit.target.getTargetX();
+            unit.targetY = unit.target.getTargetY();
 
         } else {
             if (unit.autoRetaliating) {

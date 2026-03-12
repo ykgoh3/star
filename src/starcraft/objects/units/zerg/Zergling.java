@@ -24,11 +24,11 @@ public class Zergling extends Unit {
 
     @Override
     public void attack(GamePanel panel) {
-        int prevHp = (target != null) ? target.hp : 0;
+        int prevHp = (target != null) ? target.getHp() : 0;
         super.attack(panel);
 
-        if (target != null && target.hp < prevHp) {
-            target.hitEffectTimer = 0;
+        if (target != null && target.getHp() < prevHp) {
+            target.triggerHitEffect(new Color(255, 255, 150), 0, 0);
         }
     }
 

@@ -72,6 +72,19 @@ public class InputHandler extends MouseAdapter implements KeyListener {
         int worldX = panel.screenToWorldX(e.getX());
         int worldY = panel.screenToWorldY(e.getY());
 
+        if (panel.isBuildPlacementActive()) {
+            isDragging = false;
+            startPoint = null;
+            endPoint = null;
+            if (e.getButton() == MouseEvent.BUTTON1) {
+                panel.placeCurrentBuild(worldX, worldY);
+            } else if (e.getButton() == MouseEvent.BUTTON3) {
+                panel.cancelBuildPlacement();
+            }
+            panel.repaint();
+            return;
+        }
+
         Unit clickedUnit = findClickedUnit(worldX, worldY);
         Building clickedBuilding = panel.findBuildingAtWorld(worldX, worldY);
         MineralPatch clickedMineral = panel.findMineralAtWorld(worldX, worldY);
@@ -80,6 +93,9 @@ public class InputHandler extends MouseAdapter implements KeyListener {
             if (aKeyPressed) {
                 for (Unit u : units) {
                     if (!u.isSelected) continue;
+                    if (u instanceof SCV scv) {
+                        scv.clearConstructionOrder();
+                    }
                     u.isMoving = true;
                     if (clickedUnit != null) {
                         u.commandState = 1;
@@ -131,12 +147,19 @@ public class InputHandler extends MouseAdapter implements KeyListener {
                 u.isMoving = true;
 
                 if (u instanceof SCV scv && clickedMineral != null) {
+                    scv.clearConstructionOrder();
                     clickedMineral.triggerCommandRing();
                     scv.startMining(clickedMineral, panel.findNearestCommandCenter(scv.x, scv.y, scv.team), panel);
                     continue;
                 }
 
+                if (u instanceof SCV scv && clickedBuilding instanceof starcraft.objects.buildings.ConstructionSite site && site.getTeam() == scv.team) {
+                    scv.startConstruction(site);
+                    continue;
+                }
+
                 if (u instanceof SCV scv) {
+                    scv.clearConstructionOrder();
                     scv.clearHarvestOrder();
                 }
 
@@ -247,6 +270,7 @@ public class InputHandler extends MouseAdapter implements KeyListener {
             for (Unit u : units) {
                 if (u.isSelected) {
                     if (u instanceof SCV scv) {
+                        scv.clearConstructionOrder();
                         scv.clearHarvestOrder();
                     }
                     StopLogic.execute(u);

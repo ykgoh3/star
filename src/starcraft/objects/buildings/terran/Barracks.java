@@ -7,9 +7,11 @@ import starcraft.objects.units.terran.Marine;
 import java.awt.*;
 
 public class Barracks extends UnitFactoryBuilding {
+    public static final int BUILD_WIDTH = 100;
+    public static final int BUILD_HEIGHT = 80;
 
     public Barracks(int x, int y, int team) {
-        super(x, y, team, 105, 73, 1000, 30, 20, 24);
+        super(x, y, team, BUILD_WIDTH, BUILD_HEIGHT, 1000, 30, 20, 24);
         this.image = loadImage("/starcraft/res/barracks.png");
     }
 

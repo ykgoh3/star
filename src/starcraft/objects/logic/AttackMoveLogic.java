@@ -8,8 +8,8 @@ import java.util.List;
 
 public class AttackMoveLogic {
     public static void execute(Unit unit, List<Unit> allUnits, TerrainGrid terrain) {
-        if (unit.target != null && unit.target.hp > 0) {
-            double dist = vectorMath.getDistance(unit.x, unit.y, unit.target.x, unit.target.y);
+        if (unit.target != null && unit.target.isAlive()) {
+            double dist = vectorMath.getDistance(unit.x, unit.y, unit.target.getTargetX(), unit.target.getTargetY());
 
             if (dist <= unit.range) {
                 unit.velX = 0;
@@ -17,8 +17,8 @@ public class AttackMoveLogic {
                 return;
             } else {
                 // Keep chasing a live target regardless of leash distance.
-                unit.targetX = unit.target.x;
-                unit.targetY = unit.target.y;
+                unit.targetX = unit.target.getTargetX();
+                unit.targetY = unit.target.getTargetY();
             }
         } else {
             if (unit.autoRetaliating) {
