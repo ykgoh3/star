@@ -30,17 +30,22 @@ public class MeleeAttackMoveLogic {
     public static void execute(Unit unit, List<Unit> allUnits, TerrainGrid terrain) {
         if (unit.target != null && unit.target.isAlive()) {
             double dist = vectorMath.getDistance(unit.x, unit.y, unit.target.getTargetX(), unit.target.getTargetY());
+            double attackRange = unit.getAttackRangeAgainst(unit.target);
+            double nearStopRange = attackRange + Math.max(2.0, unit.speed * 0.75);
 
-            if (dist <= unit.range) {
+            if (dist <= nearStopRange) {
                 unit.velX = 0;
                 unit.velY = 0;
                 return;
             }
 
             double targetAng = Math.atan2(unit.target.getTargetY() - unit.y, unit.target.getTargetX() - unit.x);
+            boolean closeToTarget = dist <= attackRange + Math.max(10.0, unit.speed * 3.0);
 
             if (unit.bypassDuration <= 0) {
-                double[] findHoleAngles = {0.52, -0.52, 1.04, -1.04, 1.57, -1.57, 2.09, -2.09, 2.61, -2.61};
+                double[] findHoleAngles = closeToTarget
+                        ? new double[]{0.35, -0.35, 0.7, -0.7, 1.04, -1.04}
+                        : new double[]{0.52, -0.52, 1.04, -1.04, 1.57, -1.57, 2.09, -2.09, 2.61, -2.61};
                 unit.bypassSide = 1;
                 for (double ang : findHoleAngles) {
                     double tx = unit.x + Math.cos(targetAng + ang) * unit.speed;
@@ -55,7 +60,11 @@ public class MeleeAttackMoveLogic {
             }
 
             double[] scanAngles;
-            if (unit.bypassSide == 1) {
+            if (closeToTarget) {
+                scanAngles = (unit.bypassSide == 1)
+                        ? new double[]{0, 0.18, -0.18, 0.35, -0.35, 0.52, -0.52, 0.7, -0.7}
+                        : new double[]{0, -0.18, 0.18, -0.35, 0.35, -0.52, 0.52, -0.7, 0.7};
+            } else if (unit.bypassSide == 1) {
                 scanAngles = new double[]{0, 0.52, 1.04, 1.57, 2.09, 2.61, -0.52, -1.04, -1.57, -2.09, -2.61};
             } else {
                 scanAngles = new double[]{0, -0.52, -1.04, -1.57, -2.09, -2.61, 0.52, 1.04, 1.57, 2.09, 2.61};
@@ -75,7 +84,7 @@ public class MeleeAttackMoveLogic {
                     unit.velY = Math.sin(testAng);
                     unit.resolveActiveOverlap(allUnits, terrain);
                     moved = true;
-                    unit.bypassDuration = (Math.abs(angOff) > 0.1) ? 25 : 0;
+                    unit.bypassDuration = (Math.abs(angOff) > 0.1) ? (closeToTarget ? 8 : 25) : 0;
                     break;
                 }
             }
@@ -93,7 +102,7 @@ public class MeleeAttackMoveLogic {
                         unit.velY = Math.sin(testAng);
                         unit.resolveActiveOverlap(allUnits, terrain);
                         moved = true;
-                        unit.bypassDuration = (Math.abs(angOff) > 0.1) ? 10 : 0;
+                        unit.bypassDuration = (Math.abs(angOff) > 0.1) ? (closeToTarget ? 4 : 10) : 0;
                         break;
                     }
                 }

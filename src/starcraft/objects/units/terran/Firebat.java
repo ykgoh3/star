@@ -40,7 +40,7 @@ public class Firebat extends Unit {
         if (!target.isAlive()) return;
 
         double dist = vectorMath.getDistance(x, y, target.getTargetX(), target.getTargetY());
-        if (dist > range + 5) return;
+        if (dist > getAttackRangeAgainst(target) + 5) return;
 
         double lookAngle = Math.atan2(target.getTargetY() - y, target.getTargetX() - x);
         double forwardX = Math.cos(lookAngle);
@@ -167,6 +167,8 @@ public class Firebat extends Unit {
         drawHealthBar(g);
     }
 }
+
+
 
 
 

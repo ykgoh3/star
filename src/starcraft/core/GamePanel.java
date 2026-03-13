@@ -69,7 +69,7 @@ public class GamePanel extends JPanel {
         addMouseMotionListener(inputHandler);
 
         buildings.add(new CommandCenter(100, 200, 0));
-        buildings.add(new Barracks(110, 110, 0));
+        buildings.add(new Barracks(110, 300, 0));
 
         mineralPatches.add(new MineralPatch(250, 126, 1500));
         mineralPatches.add(new MineralPatch(258, 156, 1500));
@@ -78,10 +78,10 @@ public class GamePanel extends JPanel {
         mineralPatches.add(new MineralPatch(264, 244, 1500));
         mineralPatches.add(new MineralPatch(248, 274, 1500));
 
-        units.add(new SCV(50, 300, 0));
-        units.add(new SCV(75, 300, 0));
-        units.add(new SCV(100, 300, 0));
-        units.add(new SCV(125, 300, 0));
+        units.add(new SCV(50, 100, 0));
+        units.add(new SCV(75, 100, 0));
+        units.add(new SCV(100, 100, 0));
+        units.add(new SCV(125, 100, 0));
 
 //        for (int row = 0; row < 3; row++) {
 //            for (int col = 0; col < 4; col++) {

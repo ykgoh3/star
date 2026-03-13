@@ -186,23 +186,6 @@ public abstract class Unit implements Attackable {
 
     public void resolveActiveOverlap(List<Unit> allUnits, TerrainGrid terrain) {
         if (canPassThroughUnits()) return;
-
-        for (Unit other : allUnits) {
-            if (other == this || other.hp <= 0 || !other.isMoving || other.attackTimer > 0) continue;
-
-            double d = vectorMath.getDistance(x, y, other.x, other.y);
-            double minDist = (size + other.size) * 0.5;
-
-            if (d < minDist && d > 0) {
-                double push = (minDist - d) * 0.5;
-                double pushX = (x - other.x) / d * push;
-                double pushY = (y - other.y) / d * push;
-                if (terrain.isWalkableCell((int) ((x + pushX) / terrain.cellSize), (int) ((y + pushY) / terrain.cellSize))) {
-                    x += pushX;
-                    y += pushY;
-                }
-            }
-        }
     }
 
     public boolean canMoveSolid(double nextX, double nextY, List<Unit> allUnits, TerrainGrid terrain) {
@@ -232,7 +215,7 @@ public abstract class Unit implements Attackable {
         if (!target.isAlive()) return;
 
         double dist = vectorMath.getDistance(x, y, target.getTargetX(), target.getTargetY());
-        if (dist <= range + 5) {
+        if (dist <= getAttackRangeAgainst(target) + 5) {
             int targetHpBefore = target.getHp();
             target.receiveDamage(damage);
             if (targetHpBefore > 0 && target.getHp() <= 0) {
@@ -296,6 +279,22 @@ public abstract class Unit implements Attackable {
 
     protected boolean canAutoRetaliate(Unit unit) {
         return unit != null && unit.hp > 0 && unit.commandState == 0 && !unit.isMoving && !unit.manualOrder;
+    }
+
+    public double getAttackRangeAgainst(Attackable other) {
+        double effectiveRange = range;
+        if (other == null || range > 50) {
+            return effectiveRange;
+        }
+
+        double selfReach = Math.max(4.0, size * 0.45);
+        double targetReach = 0.0;
+        if (other instanceof Unit otherUnit) {
+            targetReach = Math.max(4.0, otherUnit.size * 0.45);
+        } else if (other instanceof starcraft.objects.buildings.Building building) {
+            targetReach = Math.max(6.0, Math.min(building.getWidth(), building.getHeight()) * 0.35);
+        }
+        return effectiveRange + selfReach + targetReach;
     }
 
     public Point getNextPathNode(TerrainGrid terrain) {
@@ -638,6 +637,11 @@ public abstract class Unit implements Attackable {
         }
     }
 }
+
+
+
+
+
 
 
 
