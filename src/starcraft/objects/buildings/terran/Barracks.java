@@ -46,10 +46,5 @@ public class Barracks extends UnitFactoryBuilding {
             g.drawLine(drawX + 10, drawY + 16, drawX + width - 10, drawY + 16);
         }
 
-        int progressWidth = (int) ((width - 8) * getProductionProgress());
-        g.setColor(new Color(40, 40, 40));
-        g.fillRect(drawX + 4, drawY + height - 8, width - 8, 4);
-        g.setColor(new Color(90, 230, 120));
-        g.fillRect(drawX + 4, drawY + height - 8, Math.max(0, progressWidth), 4);
     }
 }

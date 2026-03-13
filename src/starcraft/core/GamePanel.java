@@ -7,6 +7,7 @@ import starcraft.objects.Unit;
 import starcraft.objects.buildings.ConstructionSite;
 import starcraft.objects.buildings.terran.Barracks;
 import starcraft.objects.buildings.Building;
+import starcraft.objects.buildings.UnitFactoryBuilding;
 import starcraft.objects.buildings.terran.CommandCenter;
 import starcraft.objects.resources.MineralPatch;
 import starcraft.objects.units.zerg.Hydralisk;
@@ -463,6 +464,75 @@ public class GamePanel extends JPanel {
         if (unit instanceof Zergling) return "Zergling";
         return "Unit";
     }
+
+    private String getBuildingDisplayName(Building building) {
+        if (building instanceof CommandCenter) return "Command Center";
+        if (building instanceof Barracks) return "Barracks";
+        if (building instanceof ConstructionSite site) return site.getDisplayName();
+        return "Building";
+    }
+
+    private Color getBuildingPortraitBaseColor(Building building) {
+        double hpRatio = (building == null || building.getMaxHp() <= 0) ? 1.0 : Math.max(0.0, Math.min(1.0, (double) building.getHp() / building.getMaxHp()));
+        if (hpRatio > 0.66) return new Color(70, 185, 25);
+        if (hpRatio > 0.33) return new Color(210, 175, 30);
+        return new Color(195, 45, 30);
+    }
+
+    private void drawSelectedBuildingSilhouette(Graphics g, Rectangle status, Building building) {
+        if (building == null) return;
+
+        int boxSize = Math.min(status.height - 8, 86);
+        if (boxSize <= 12) return;
+
+        int boxX = status.x + 12;
+        int boxY = status.y + (status.height - boxSize) / 2;
+
+        BufferedImage mask = new BufferedImage(boxSize, boxSize, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D pg = mask.createGraphics();
+        pg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        int spriteW = Math.max(1, building.getWidth());
+        int spriteH = Math.max(1, building.getHeight());
+        double scale = Math.min((boxSize - 4) / (double) spriteW, (boxSize - 4) / (double) spriteH);
+        int drawW = Math.max(1, (int) Math.round(spriteW * scale));
+        int drawH = Math.max(1, (int) Math.round(spriteH * scale));
+        int drawX = (boxSize - drawW) / 2;
+        int drawY = (boxSize - drawH) / 2;
+
+        if (building.getImage() != null) {
+            pg.drawImage(building.getImage(), drawX, drawY, drawW, drawH, null);
+        } else {
+            pg.setColor(Color.WHITE);
+            pg.fillRect(drawX, drawY, drawW, drawH);
+        }
+        pg.dispose();
+
+        Color baseColor = getBuildingPortraitBaseColor(building);
+        BufferedImage portrait = new BufferedImage(boxSize, boxSize, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < boxSize; y++) {
+            for (int x = 0; x < boxSize; x++) {
+                int alpha = (mask.getRGB(x, y) >>> 24) & 0xFF;
+                if (alpha == 0) continue;
+
+                double nx = (x - boxSize * 0.35) / boxSize;
+                double ny = (y - boxSize * 0.3) / boxSize;
+                double radial = Math.max(0.0, 1.0 - Math.sqrt(nx * nx + ny * ny) * 2.0);
+                double topLight = Math.max(0.0, 1.0 - (double) y / boxSize);
+                double leftLight = Math.max(0.0, 1.0 - (double) x / boxSize);
+                double shade = 0.2 + radial * 0.45 + topLight * 0.25 + leftLight * 0.1;
+                shade = Math.max(0.1, Math.min(1.0, shade));
+
+                int r = (int) Math.round(baseColor.getRed() * (0.45 + 0.55 * shade));
+                int gCol = (int) Math.round(baseColor.getGreen() * (0.45 + 0.55 * shade));
+                int b = (int) Math.round(baseColor.getBlue() * (0.45 + 0.55 * shade));
+                portrait.setRGB(x, y, (alpha << 24) | (r << 16) | (gCol << 8) | b);
+            }
+        }
+
+        g.drawImage(portrait, boxX, boxY, null);
+    }
+
     private Color getPortraitBaseColor(Unit unit) {
         double hpRatio = (unit == null || unit.maxHp <= 0) ? 1.0 : Math.max(0.0, Math.min(1.0, (double) unit.hp / unit.maxHp));
         if (hpRatio > 0.66) return new Color(70, 185, 25);
@@ -474,7 +544,7 @@ public class GamePanel extends JPanel {
     private void drawSelectedUnitSilhouette(Graphics g, Rectangle status, Unit unit) {
         if (unit == null) return;
 
-        int boxSize = Math.min(status.height - 16, 72);
+        int boxSize = Math.min(status.height - 10, 84);
         if (boxSize <= 12) return;
 
         int boxX = status.x + 12;
@@ -488,7 +558,7 @@ public class GamePanel extends JPanel {
 
         int spriteW = Math.max(1, unit.getDrawWidth());
         int spriteH = Math.max(1, unit.getDrawHeight());
-        double scale = Math.min((boxSize - 12) / (double) spriteW, (boxSize - 12) / (double) spriteH);
+        double scale = Math.min((boxSize - 6) / (double) spriteW, (boxSize - 6) / (double) spriteH);
         int drawW = Math.max(1, (int) Math.round(spriteW * scale));
         int drawH = Math.max(1, (int) Math.round(spriteH * scale));
         int drawX = (boxSize - drawW) / 2;
@@ -545,9 +615,7 @@ public class GamePanel extends JPanel {
 
     private void drawStatIconBox(Graphics2D g2, Rectangle rect) {
         g2.setColor(new Color(44, 44, 44));
-        g2.fillRect(rect.x, rect.y, rect.width, rect.height);
         g2.setColor(new Color(110, 110, 110));
-        g2.drawRect(rect.x, rect.y, rect.width, rect.height);
 
         int lineY = rect.y + rect.height - 11;
         int diagonalStartX = rect.x + rect.width - 10;
@@ -796,15 +864,19 @@ public class GamePanel extends JPanel {
     public boolean handleUiLeftClick(int mouseX, int mouseY) {
         if (!isInUiArea(mouseX, mouseY)) return false;
 
+        if (selectedBuilding instanceof UnitFactoryBuilding factory && handleProductionQueueClick(mouseX, mouseY, factory)) {
+            return true;
+        }
+
         if (selectedBuilding instanceof Barracks barracks) {
             Rectangle marineButton = getMarineButtonBounds();
-            if (marineButton.contains(mouseX, mouseY) && spendMinerals(0, 50)) {
+            if (marineButton.contains(mouseX, mouseY) && barracks.getQueuedUnits() < UnitFactoryBuilding.MAX_QUEUE_SIZE && spendMinerals(0, 50)) {
                 barracks.enqueueMarine();
                 return true;
             }
         } else if (selectedBuilding instanceof CommandCenter center) {
             Rectangle scvButton = getScvButtonBounds();
-            if (scvButton.contains(mouseX, mouseY) && spendMinerals(0, 50)) {
+            if (scvButton.contains(mouseX, mouseY) && center.getQueuedUnits() < UnitFactoryBuilding.MAX_QUEUE_SIZE && spendMinerals(0, 50)) {
                 center.enqueueWorker();
                 return true;
             }
@@ -902,6 +974,141 @@ public class GamePanel extends JPanel {
         }
     }
 
+
+
+    private String getProductionQueueLabel(UnitFactoryBuilding factory) {
+        if (factory instanceof CommandCenter) return "SCV";
+        if (factory instanceof Barracks) return "Marine";
+        return "Unit";
+    }
+
+    private Color getProductionQueueColor(UnitFactoryBuilding factory) {
+        if (factory instanceof CommandCenter) return new Color(60, 140, 180);
+        if (factory instanceof Barracks) return new Color(60, 90, 180);
+        return new Color(70, 100, 165);
+    }
+    private Rectangle getProductionPanelRect(Rectangle status) {
+        int panelWidth = Math.min(196, Math.max(140, status.width - 220));
+        int panelHeight = Math.min(status.height - 14, 84);
+        int panelX = status.x + 116;
+        int panelY = status.y + 28;
+        return new Rectangle(panelX, panelY, panelWidth, panelHeight);
+    }
+
+    private Rectangle getProductionSlotBounds(Rectangle status, int slotIndex) {
+        Rectangle panel = getProductionPanelRect(status);
+        int bottomSize = Math.max(28, Math.min(32, Math.min((panel.width - 32) / 4, panel.height - 24)));
+        int gap = Math.max(4, Math.min(7, (panel.width - 16 - 4 * bottomSize) / 3));
+        int bottomY = panel.y + panel.height - bottomSize - 2;
+        int twoX = panel.x + 8;
+        if (slotIndex == 0) {
+            return new Rectangle(twoX, bottomY - bottomSize - gap, bottomSize, bottomSize);
+        }
+        if (slotIndex == 1) {
+            return new Rectangle(twoX, bottomY, bottomSize, bottomSize);
+        }
+        int x = twoX + (bottomSize + gap) * (slotIndex - 1);
+        return new Rectangle(x, bottomY, bottomSize, bottomSize);
+    }
+
+    private int getProductionCancelCost(UnitFactoryBuilding factory) {
+        if (factory instanceof CommandCenter) return 50;
+        if (factory instanceof Barracks) return 50;
+        return 0;
+    }
+
+    private boolean handleProductionQueueClick(int mouseX, int mouseY, UnitFactoryBuilding factory) {
+        if (factory == null || factory.getQueuedUnits() <= 0) return false;
+        Rectangle status = getStatusPanelRect();
+        for (int i = 0; i < Math.min(UnitFactoryBuilding.MAX_QUEUE_SIZE, factory.getQueuedUnits()); i++) {
+            Rectangle slot = getProductionSlotBounds(status, i);
+            if (!slot.contains(mouseX, mouseY)) continue;
+            if (factory.cancelQueuedUnitAt(i)) {
+                addMinerals(factory.getTeam(), getProductionCancelCost(factory));
+                return true;
+            }
+            return false;
+        }
+        return false;
+    }
+
+    private void drawProductionPanel(Graphics g, Rectangle status, UnitFactoryBuilding factory) {
+        if (factory == null || factory.getQueuedUnits() <= 0) return;
+
+        Graphics2D g2 = (Graphics2D) g.create();
+        int panelWidth = Math.min(196, Math.max(140, status.width - 220));
+        int panelHeight = Math.min(status.height - 14, 84);
+        int panelX = status.x + 116;
+        int panelY = status.y + 28;
+        Rectangle panel = new Rectangle(panelX, panelY, panelWidth, panelHeight);
+
+        g2.setColor(new Color(14, 14, 14, 0));
+
+        String queueLabel = getProductionQueueLabel(factory);
+        Color queueColor = getProductionQueueColor(factory);
+
+        int bottomSize = Math.max(28, Math.min(32, Math.min((panel.width - 32) / 4, panel.height - 24)));
+        int gap = Math.max(4, Math.min(7, (panel.width - 16 - 4 * bottomSize) / 3));
+        int bottomY = panel.y + panel.height - bottomSize - 2;
+        int twoX = panel.x + 8;
+        int oneSize = bottomSize;
+        int oneX = twoX;
+        int oneY = bottomY - oneSize - gap;
+        int threeX = twoX + bottomSize + gap;
+        int fiveRight = twoX + (bottomSize + gap) * 3 + bottomSize;
+        int progressX = twoX + bottomSize + 3;
+        int progressHeight = Math.max(8, Math.min(10, bottomSize / 2));
+        int progressY = bottomY - progressHeight - 3;
+        int progressWidth = Math.max(20, fiveRight - progressX);
+
+        drawProductionSlot(g2, new Rectangle(oneX, oneY, oneSize, oneSize), factory.getQueuedUnits() >= 1 ? queueLabel : "1", queueColor, factory.getQueuedUnits() >= 1, true);
+        drawProductionSlot(g2, new Rectangle(twoX, bottomY, bottomSize, bottomSize), factory.getQueuedUnits() >= 2 ? queueLabel : "2", queueColor, factory.getQueuedUnits() >= 2, false);
+
+        for (int i = 0; i < 3; i++) {
+            int x = twoX + (bottomSize + gap) * (i + 1);
+            drawProductionSlot(g2, new Rectangle(x, bottomY, bottomSize, bottomSize), factory.getQueuedUnits() >= i + 3 ? queueLabel : String.valueOf(i + 3), queueColor, factory.getQueuedUnits() >= i + 3, false);
+        }
+
+        g2.setColor(new Color(36, 36, 36));
+        g2.fillRoundRect(progressX, progressY, progressWidth, progressHeight, progressHeight, progressHeight);
+        g2.setColor(new Color(95, 95, 95));
+        g2.drawRoundRect(progressX, progressY, progressWidth, progressHeight, progressHeight, progressHeight);
+        int filledWidth = (int) Math.round(progressWidth * factory.getProductionProgress());
+        if (filledWidth > 0) {
+            g2.setColor(new Color(80, 220, 120));
+            g2.fillRoundRect(progressX + 1, progressY + 1, Math.max(1, filledWidth - 2), Math.max(1, progressHeight - 2), progressHeight, progressHeight);
+        }
+
+        g2.dispose();
+    }
+
+    private void drawProductionSlot(Graphics2D g2, Rectangle rect, String label, Color slotColor, boolean active, boolean primary) {
+        g2.setColor(active ? slotColor : new Color(24, 24, 24, 50));
+        g2.fillRect(rect.x, rect.y, rect.width, rect.height);
+        g2.setColor(active ? new Color(210, 210, 210) : new Color(90, 90, 90));
+        g2.drawRect(rect.x, rect.y, rect.width, rect.height);
+
+        if (label == null || label.isEmpty()) return;
+
+        Font oldFont = g2.getFont();
+        int fontSize = label.length() > 3 ? Math.max(12, primary ? rect.height - 6 : rect.height - 8) : Math.max(20, primary ? rect.height + 2 : rect.height);
+        Font fittedFont = oldFont.deriveFont(Font.BOLD, (float) fontSize);
+        FontMetrics fm = g2.getFontMetrics(fittedFont);
+        int maxTextWidth = Math.max(8, rect.width - 6);
+        while (fontSize > 9 && fm.stringWidth(label) > maxTextWidth) {
+            fontSize--;
+            fittedFont = oldFont.deriveFont(Font.BOLD, (float) fontSize);
+            fm = g2.getFontMetrics(fittedFont);
+        }
+
+        g2.setFont(fittedFont);
+        int textX = rect.x + (rect.width - fm.stringWidth(label)) / 2;
+        int textY = rect.y + ((rect.height - fm.getHeight()) / 2) + fm.getAscent();
+        g2.setColor(active ? Color.WHITE : new Color(100, 100, 100));
+        g2.drawString(label, textX, textY);
+        g2.setFont(oldFont);
+    }
+
     private void drawBottomUiBar(Graphics g) {
         int top = getUiBarTop();
         g.setColor(new Color(18, 18, 18));
@@ -925,6 +1132,7 @@ public class GamePanel extends JPanel {
         g.setColor(new Color(120, 120, 120));
         g.drawRect(status.x, status.y, status.width, status.height);
         g.setColor(Color.WHITE);
+        UnitFactoryBuilding selectedFactory = selectedBuilding instanceof UnitFactoryBuilding factory ? factory : null;
         if (selectedUnits.size() > 1) {
             drawMultiSelectedUnits(g, status, selectedUnits);
         } else if (selectedUnit != null) {
@@ -938,16 +1146,27 @@ public class GamePanel extends JPanel {
             g.drawString("HP: " + selectedUnit.hp + " / " + selectedUnit.maxHp, status.x + 12, status.y + status.height - 12);
             drawUnitStatIcons(g, status, selectedUnit);
         } else if (selectedBuilding instanceof Barracks barracks) {
-            g.drawString("Barracks", status.x + 12, status.y + 20);
-            g.drawString("Queue: " + barracks.getQueuedUnits(), status.x + 12, status.y + 40);
+            int statusCenterX = status.x + status.width / 2;
+            String buildingName = getBuildingDisplayName(barracks);
+            FontMetrics fm = g.getFontMetrics();
+            g.drawString(buildingName, statusCenterX - fm.stringWidth(buildingName) / 2, status.y + 20);
+            drawSelectedBuildingSilhouette(g, status, barracks);
             g.drawString("HP: " + barracks.getHp() + " / " + barracks.getMaxHp(), status.x + 12, status.y + status.height - 12);
         } else if (selectedBuilding instanceof CommandCenter center) {
-            g.drawString("Command Center", status.x + 12, status.y + 20);
-            g.drawString("Queue: " + center.getQueuedUnits(), status.x + 12, status.y + 40);
+            int statusCenterX = status.x + status.width / 2;
+            String buildingName = getBuildingDisplayName(center);
+            FontMetrics fm = g.getFontMetrics();
+            g.drawString(buildingName, statusCenterX - fm.stringWidth(buildingName) / 2, status.y + 20);
+            drawSelectedBuildingSilhouette(g, status, center);
             g.drawString("HP: " + center.getHp() + " / " + center.getMaxHp(), status.x + 12, status.y + status.height - 12);
         } else if (selectedBuilding instanceof ConstructionSite site) {
-            g.drawString(site.getDisplayName(), status.x + 12, status.y + 20);
-            g.drawString("Build: " + (int) Math.round(site.getBuildProgress() * 100) + "%", status.x + 12, status.y + 40);
+            int statusCenterX = status.x + status.width / 2;
+            String buildingName = getBuildingDisplayName(site);
+            String buildText = "Build: " + (int) Math.round(site.getBuildProgress() * 100) + "%";
+            FontMetrics fm = g.getFontMetrics();
+            g.drawString(buildingName, statusCenterX - fm.stringWidth(buildingName) / 2, status.y + 20);
+            g.drawString(buildText, statusCenterX - fm.stringWidth(buildText) / 2, status.y + 42);
+            drawSelectedBuildingSilhouette(g, status, site);
             g.drawString("HP: " + site.getHp() + " / " + site.getMaxHp(), status.x + 12, status.y + status.height - 12);
         } else if (selectedMineral != null && !selectedMineral.isDepleted()) {
             g.drawString("Mineral Patch", status.x + 12, status.y + 20);
@@ -957,6 +1176,8 @@ public class GamePanel extends JPanel {
             g.drawString("Select unit/building", status.x + 12, status.y + 40);
         }
 
+
+        drawProductionPanel(g, status, selectedFactory);
         Rectangle control = getControlPanelRect();
         g.setColor(new Color(28, 28, 28));
         g.fillRect(control.x, control.y, control.width, control.height);
@@ -1279,6 +1500,9 @@ public class GamePanel extends JPanel {
                 gWorld.setStroke(oldStroke);
             }
             building.draw(gWorld);
+            if (building == selectedBuilding) {
+                starcraft.engine.RenderUtils.drawHealthBar(gWorld, building.getX(), building.getY(), building.getWidth(), building.getHeight(), building.getHp(), building.getMaxHp(), building.getTeam(), false);
+            }
         }
 
         units.sort((u1, u2) -> Double.compare(u1.y, u2.y));
@@ -1303,4 +1527,19 @@ public class GamePanel extends JPanel {
         drawBottomUiBar(g);
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Set;
 
 public abstract class UnitFactoryBuilding extends Building {
+    public static final int MAX_QUEUE_SIZE = 5;
+
     private final int spawnIntervalTicks;
     private final int blockedRetryTicks;
     private final int spawnClearRadius;
@@ -28,6 +30,7 @@ public abstract class UnitFactoryBuilding extends Building {
     }
 
     public void enqueueUnit() {
+        if (queuedUnits >= MAX_QUEUE_SIZE) return;
         queuedUnits++;
     }
 
@@ -35,6 +38,18 @@ public abstract class UnitFactoryBuilding extends Building {
         return queuedUnits;
     }
 
+
+    public boolean cancelQueuedUnitAt(int queueIndex) {
+        if (queueIndex < 0 || queueIndex >= queuedUnits) return false;
+
+        queuedUnits = Math.max(0, queuedUnits - 1);
+        if (queuedUnits <= 0) {
+            spawnTimer = spawnIntervalTicks;
+        } else if (queueIndex == 0) {
+            spawnTimer = spawnIntervalTicks;
+        }
+        return true;
+    }
     @Override
     public void update(GamePanel panel) {
         if (panel == null || isDestroyed()) return;
@@ -64,7 +79,7 @@ public abstract class UnitFactoryBuilding extends Building {
         }
     }
 
-    protected double getProductionProgress() {
+    public double getProductionProgress() {
         if (queuedUnits <= 0) return 0.0;
         if (spawnIntervalTicks <= 0) return 1.0;
         return Math.max(0.0, Math.min(1.0, 1.0 - (double) spawnTimer / spawnIntervalTicks));

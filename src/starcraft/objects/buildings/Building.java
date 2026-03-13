@@ -53,6 +53,10 @@ public abstract class Building implements Attackable {
         return maxHp;
     }
 
+
+    public Image getImage() {
+        return image;
+    }
     @Override
     public double getTargetX() {
         return x;

@@ -56,10 +56,5 @@ public class CommandCenter extends UnitFactoryBuilding {
             g.drawString("CC", drawX + width / 2 - 8, drawY + 20);
         }
 
-        int progressWidth = (int) ((width - 10) * getProductionProgress());
-        g.setColor(new Color(40, 40, 40));
-        g.fillRect(drawX + 5, drawY + height - 10, width - 10, 5);
-        g.setColor(new Color(90, 230, 120));
-        g.fillRect(drawX + 5, drawY + height - 10, Math.max(0, progressWidth), 5);
     }
 }
