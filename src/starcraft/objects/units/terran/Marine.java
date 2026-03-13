@@ -11,9 +11,10 @@ public class Marine extends Unit {
         super(x, y, team);
         this.maxHp = 40;
         this.hp = 40;
+        this.armor = 0;
         this.damage = 6;
         this.attackDelay = 15;
-        this.range = 140;
+        this.range = 128;
         this.speed = 2.2;
         this.size = 18;
         this.drawWidth = 17;
@@ -56,3 +57,6 @@ public class Marine extends Unit {
         drawHealthBar(g);
     }
 }
+
+
+

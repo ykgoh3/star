@@ -47,9 +47,10 @@ public class SCV extends Unit {
         super(x, y, team);
         this.maxHp = 60;
         this.hp = 60;
+        this.armor = 0;
         this.damage = 5;
-        this.attackDelay = 18;
-        this.range = 28;
+        this.attackDelay = 15;
+        this.range = 10;
         this.speed = 2.0;
         this.size = 23;
         this.drawWidth = 23;
@@ -564,3 +565,6 @@ public class SCV extends Unit {
         drawHealthBar(g);
     }
 }
+
+
+

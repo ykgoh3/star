@@ -12,9 +12,10 @@ public class Zergling extends Unit {
         super(x, y, team);
         this.maxHp = 35;
         this.hp = 35;
+        this.armor = 0;
         this.damage = 5;
-        this.attackDelay = 15;
-        this.range = 30;
+        this.attackDelay = 8;
+        this.range = 15;
         this.speed = 3.5;
         this.size = 16;
         this.drawWidth = 16;
@@ -78,3 +79,6 @@ public class Zergling extends Unit {
         drawHealthBar(g);
     }
 }
+
+
+

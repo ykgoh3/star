@@ -13,9 +13,10 @@ public class Hydralisk extends Unit {
         super(x, y, team);
         this.maxHp = 80;
         this.hp = 80;
+        this.armor = 0;
         this.damage = 10;
-        this.attackDelay = 18;
-        this.range = 130;
+        this.attackDelay = 15;
+        this.range = 128;
         this.speed = 2.8;
         this.size = 22;
         this.drawWidth = 21;
@@ -96,3 +97,6 @@ public class Hydralisk extends Unit {
         drawHealthBar(g);
     }
 }
+
+
+
