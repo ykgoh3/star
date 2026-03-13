@@ -3,3 +3,4 @@
 - Then implement directly without long planning chatter.
 - Run a compile check at the end and report only key results.
 - When adjusting unit or building scale, first reference docs/starcraft-size-reference.md and preserve original StarCraft proportions where practical.
+- If a unit or building is missing from docs/starcraft-size-reference.md, check the Liquipedia source linked there before implementing size-related changes.

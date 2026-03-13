@@ -11,6 +11,7 @@ import starcraft.objects.buildings.UnitFactoryBuilding;
 import starcraft.objects.buildings.terran.CommandCenter;
 import starcraft.objects.resources.MineralPatch;
 import starcraft.objects.units.zerg.Hydralisk;
+import starcraft.objects.units.terran.Firebat;
 import starcraft.objects.units.terran.Marine;
 import starcraft.objects.units.terran.SCV;
 import starcraft.objects.units.zerg.Zergling;
@@ -460,6 +461,7 @@ public class GamePanel extends JPanel {
     private String getUnitDisplayName(Unit unit) {
         if (unit instanceof SCV) return "SCV";
         if (unit instanceof Marine) return "Marine";
+        if (unit instanceof Firebat) return "Firebat";
         if (unit instanceof Hydralisk) return "Hydralisk";
         if (unit instanceof Zergling) return "Zergling";
         return "Unit";
@@ -874,6 +876,12 @@ public class GamePanel extends JPanel {
                 barracks.enqueueMarine();
                 return true;
             }
+
+            Rectangle firebatButton = getFirebatButtonBounds();
+            if (firebatButton.contains(mouseX, mouseY) && barracks.getQueuedUnits() < UnitFactoryBuilding.MAX_QUEUE_SIZE && spendMinerals(0, 50)) {
+                barracks.enqueueFirebat();
+                return true;
+            }
         } else if (selectedBuilding instanceof CommandCenter center) {
             Rectangle scvButton = getScvButtonBounds();
             if (scvButton.contains(mouseX, mouseY) && center.getQueuedUnits() < UnitFactoryBuilding.MAX_QUEUE_SIZE && spendMinerals(0, 50)) {
@@ -923,6 +931,10 @@ public class GamePanel extends JPanel {
 
     private Rectangle getMarineButtonBounds() {
         return getControlCellBounds(0, 0);
+    }
+
+    private Rectangle getFirebatButtonBounds() {
+        return getControlCellBounds(0, 1);
     }
 
     private Rectangle getScvButtonBounds() {
@@ -976,17 +988,33 @@ public class GamePanel extends JPanel {
 
 
 
-    private String getProductionQueueLabel(UnitFactoryBuilding factory) {
+    private String getProductionQueueLabel(UnitFactoryBuilding factory, String unitTypeId) {
         if (factory instanceof CommandCenter) return "SCV";
-        if (factory instanceof Barracks) return "Marine";
+        if (factory instanceof Barracks) {
+            if (Barracks.QUEUE_FIREBAT.equals(unitTypeId)) return "Firebat";
+            return "Marine";
+        }
         return "Unit";
     }
 
-    private Color getProductionQueueColor(UnitFactoryBuilding factory) {
+    private Color getProductionQueueColor(UnitFactoryBuilding factory, String unitTypeId) {
         if (factory instanceof CommandCenter) return new Color(60, 140, 180);
-        if (factory instanceof Barracks) return new Color(60, 90, 180);
+        if (factory instanceof Barracks) {
+            if (Barracks.QUEUE_FIREBAT.equals(unitTypeId)) return new Color(190, 95, 45);
+            return new Color(60, 90, 180);
+        }
         return new Color(70, 100, 165);
     }
+
+    private int getProductionCost(UnitFactoryBuilding factory, String unitTypeId) {
+        if (factory instanceof CommandCenter) return 50;
+        if (factory instanceof Barracks) {
+            if (Barracks.QUEUE_FIREBAT.equals(unitTypeId)) return 50;
+            return 50;
+        }
+        return 0;
+    }
+
     private Rectangle getProductionPanelRect(Rectangle status) {
         int panelWidth = Math.min(196, Math.max(140, status.width - 220));
         int panelHeight = Math.min(status.height - 14, 84);
@@ -1011,41 +1039,29 @@ public class GamePanel extends JPanel {
         return new Rectangle(x, bottomY, bottomSize, bottomSize);
     }
 
-    private int getProductionCancelCost(UnitFactoryBuilding factory) {
-        if (factory instanceof CommandCenter) return 50;
-        if (factory instanceof Barracks) return 50;
-        return 0;
-    }
-
     private boolean handleProductionQueueClick(int mouseX, int mouseY, UnitFactoryBuilding factory) {
         if (factory == null || factory.getQueuedUnits() <= 0) return false;
         Rectangle status = getStatusPanelRect();
         for (int i = 0; i < Math.min(UnitFactoryBuilding.MAX_QUEUE_SIZE, factory.getQueuedUnits()); i++) {
             Rectangle slot = getProductionSlotBounds(status, i);
             if (!slot.contains(mouseX, mouseY)) continue;
+            String unitTypeId = factory.getQueuedUnitTypeId(i);
+            int refund = getProductionCost(factory, unitTypeId);
             if (factory.cancelQueuedUnitAt(i)) {
-                addMinerals(factory.getTeam(), getProductionCancelCost(factory));
+                addMinerals(factory.getTeam(), refund);
                 return true;
             }
             return false;
         }
         return false;
     }
-
     private void drawProductionPanel(Graphics g, Rectangle status, UnitFactoryBuilding factory) {
         if (factory == null || factory.getQueuedUnits() <= 0) return;
 
         Graphics2D g2 = (Graphics2D) g.create();
-        int panelWidth = Math.min(196, Math.max(140, status.width - 220));
-        int panelHeight = Math.min(status.height - 14, 84);
-        int panelX = status.x + 116;
-        int panelY = status.y + 28;
-        Rectangle panel = new Rectangle(panelX, panelY, panelWidth, panelHeight);
+        Rectangle panel = getProductionPanelRect(status);
 
         g2.setColor(new Color(14, 14, 14, 0));
-
-        String queueLabel = getProductionQueueLabel(factory);
-        Color queueColor = getProductionQueueColor(factory);
 
         int bottomSize = Math.max(28, Math.min(32, Math.min((panel.width - 32) / 4, panel.height - 24)));
         int gap = Math.max(4, Math.min(7, (panel.width - 16 - 4 * bottomSize) / 3));
@@ -1054,19 +1070,21 @@ public class GamePanel extends JPanel {
         int oneSize = bottomSize;
         int oneX = twoX;
         int oneY = bottomY - oneSize - gap;
-        int threeX = twoX + bottomSize + gap;
         int fiveRight = twoX + (bottomSize + gap) * 3 + bottomSize;
         int progressX = twoX + bottomSize + 3;
         int progressHeight = Math.max(8, Math.min(10, bottomSize / 2));
         int progressY = bottomY - progressHeight - 3;
         int progressWidth = Math.max(20, fiveRight - progressX);
 
-        drawProductionSlot(g2, new Rectangle(oneX, oneY, oneSize, oneSize), factory.getQueuedUnits() >= 1 ? queueLabel : "1", queueColor, factory.getQueuedUnits() >= 1, true);
-        drawProductionSlot(g2, new Rectangle(twoX, bottomY, bottomSize, bottomSize), factory.getQueuedUnits() >= 2 ? queueLabel : "2", queueColor, factory.getQueuedUnits() >= 2, false);
+        String oneType = factory.getQueuedUnitTypeId(0);
+        drawProductionSlot(g2, new Rectangle(oneX, oneY, oneSize, oneSize), oneType != null ? getProductionQueueLabel(factory, oneType) : "1", oneType != null ? getProductionQueueColor(factory, oneType) : new Color(70, 100, 165), oneType != null, true);
 
-        for (int i = 0; i < 3; i++) {
-            int x = twoX + (bottomSize + gap) * (i + 1);
-            drawProductionSlot(g2, new Rectangle(x, bottomY, bottomSize, bottomSize), factory.getQueuedUnits() >= i + 3 ? queueLabel : String.valueOf(i + 3), queueColor, factory.getQueuedUnits() >= i + 3, false);
+        for (int slotIndex = 1; slotIndex < UnitFactoryBuilding.MAX_QUEUE_SIZE; slotIndex++) {
+            Rectangle slot = getProductionSlotBounds(status, slotIndex);
+            String unitTypeId = factory.getQueuedUnitTypeId(slotIndex);
+            String fallback = String.valueOf(slotIndex + 1);
+            Color color = unitTypeId != null ? getProductionQueueColor(factory, unitTypeId) : new Color(70, 100, 165);
+            drawProductionSlot(g2, slot, unitTypeId != null ? getProductionQueueLabel(factory, unitTypeId) : fallback, color, unitTypeId != null, false);
         }
 
         g2.setColor(new Color(36, 36, 36));
@@ -1081,7 +1099,6 @@ public class GamePanel extends JPanel {
 
         g2.dispose();
     }
-
     private void drawProductionSlot(Graphics2D g2, Rectangle rect, String label, Color slotColor, boolean active, boolean primary) {
         g2.setColor(active ? slotColor : new Color(24, 24, 24, 50));
         g2.fillRect(rect.x, rect.y, rect.width, rect.height);
@@ -1192,6 +1209,13 @@ public class GamePanel extends JPanel {
             g.setColor(Color.WHITE);
             g.drawRect(cell.x, cell.y, cell.width, cell.height);
             g.drawString("Marine", cell.x + 6, cell.y + Math.max(14, cell.height / 2 + 4));
+
+            Rectangle firebatCell = getFirebatButtonBounds();
+            g.setColor(new Color(190, 95, 45));
+            g.fillRect(firebatCell.x, firebatCell.y, firebatCell.width, firebatCell.height);
+            g.setColor(Color.WHITE);
+            g.drawRect(firebatCell.x, firebatCell.y, firebatCell.width, firebatCell.height);
+            g.drawString("Firebat", firebatCell.x + 3, firebatCell.y + Math.max(14, firebatCell.height / 2 + 4));
         } else if (selectedBuilding instanceof CommandCenter) {
             Rectangle cell = getScvButtonBounds();
             g.setColor(new Color(60, 140, 180));
@@ -1527,6 +1551,8 @@ public class GamePanel extends JPanel {
         drawBottomUiBar(g);
     }
 }
+
+
 
 
 

@@ -12,6 +12,7 @@ This file stores the external size references used to tune unit, mineral, and bu
 ### Units
 
 - Terran Marine: `17x20`
+- Terran Firebat: `23x22`
 - Terran SCV: `23x23`
 - Zerg Hydralisk: `21x23`
 - Zerg Zergling: `16x16`

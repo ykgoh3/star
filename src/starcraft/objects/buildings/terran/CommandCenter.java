@@ -9,13 +9,13 @@ import java.awt.*;
 public class CommandCenter extends UnitFactoryBuilding {
     public static final int BUILD_WIDTH = 117;
     public static final int BUILD_HEIGHT = 80;
+    public static final String QUEUE_SCV = "scv";
 
     public CommandCenter(int x, int y, int team) {
         super(x, y, team, BUILD_WIDTH, BUILD_HEIGHT, 1500, 60, 20, 26);
         this.image = loadImage("/starcraft/res/command_center.png");
     }
 
-    // Keep the blocking footprint tighter than the sprite so workers can return from nearby edges.
     @Override
     public int getPathingBlockWidth() {
         return Math.max(20, width - 56);
@@ -26,13 +26,12 @@ public class CommandCenter extends UnitFactoryBuilding {
         return Math.max(20, height - 32);
     }
 
-    // Worker production queue.
     public void enqueueWorker() {
-        enqueueUnit();
+        enqueueUnit(QUEUE_SCV);
     }
 
     @Override
-    protected Unit createUnit(int x, int y, int team) {
+    protected Unit createUnit(String unitTypeId, int x, int y, int team) {
         return new SCV(x, y, team);
     }
 
@@ -55,6 +54,5 @@ public class CommandCenter extends UnitFactoryBuilding {
             g.setColor(new Color(220, 220, 220));
             g.drawString("CC", drawX + width / 2 - 8, drawY + 20);
         }
-
     }
 }

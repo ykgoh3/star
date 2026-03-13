@@ -18,7 +18,7 @@ public abstract class UnitFactoryBuilding extends Building {
     private final int spawnClearRadius;
 
     private int spawnTimer;
-    private int queuedUnits = 0;
+    private final ArrayList<String> productionQueue = new ArrayList<>();
 
     protected UnitFactoryBuilding(double x, double y, int team, int width, int height, int maxHp,
                                   int spawnIntervalTicks, int blockedRetryTicks, int spawnClearRadius) {
@@ -29,32 +29,35 @@ public abstract class UnitFactoryBuilding extends Building {
         this.spawnTimer = spawnIntervalTicks;
     }
 
-    public void enqueueUnit() {
-        if (queuedUnits >= MAX_QUEUE_SIZE) return;
-        queuedUnits++;
+    protected void enqueueUnit(String unitTypeId) {
+        if (unitTypeId == null || productionQueue.size() >= MAX_QUEUE_SIZE) return;
+        productionQueue.add(unitTypeId);
     }
 
     public int getQueuedUnits() {
-        return queuedUnits;
+        return productionQueue.size();
     }
 
+    public String getQueuedUnitTypeId(int queueIndex) {
+        if (queueIndex < 0 || queueIndex >= productionQueue.size()) return null;
+        return productionQueue.get(queueIndex);
+    }
 
     public boolean cancelQueuedUnitAt(int queueIndex) {
-        if (queueIndex < 0 || queueIndex >= queuedUnits) return false;
+        if (queueIndex < 0 || queueIndex >= productionQueue.size()) return false;
 
-        queuedUnits = Math.max(0, queuedUnits - 1);
-        if (queuedUnits <= 0) {
-            spawnTimer = spawnIntervalTicks;
-        } else if (queueIndex == 0) {
+        productionQueue.remove(queueIndex);
+        if (productionQueue.isEmpty() || queueIndex == 0) {
             spawnTimer = spawnIntervalTicks;
         }
         return true;
     }
+
     @Override
     public void update(GamePanel panel) {
         if (panel == null || isDestroyed()) return;
 
-        if (queuedUnits <= 0) {
+        if (productionQueue.isEmpty()) {
             spawnTimer = spawnIntervalTicks;
             return;
         }
@@ -66,10 +69,11 @@ public abstract class UnitFactoryBuilding extends Building {
 
         Point spawnPoint = findSpawnPoint(panel);
         if (spawnPoint != null) {
-            Unit spawned = createUnit(spawnPoint.x, spawnPoint.y, team);
+            String unitTypeId = productionQueue.get(0);
+            Unit spawned = createUnit(unitTypeId, spawnPoint.x, spawnPoint.y, team);
             if (spawned != null) {
                 panel.getUnits().add(spawned);
-                queuedUnits = Math.max(0, queuedUnits - 1);
+                productionQueue.remove(0);
                 spawnTimer = spawnIntervalTicks;
             } else {
                 spawnTimer = blockedRetryTicks;
@@ -80,12 +84,12 @@ public abstract class UnitFactoryBuilding extends Building {
     }
 
     public double getProductionProgress() {
-        if (queuedUnits <= 0) return 0.0;
+        if (productionQueue.isEmpty()) return 0.0;
         if (spawnIntervalTicks <= 0) return 1.0;
         return Math.max(0.0, Math.min(1.0, 1.0 - (double) spawnTimer / spawnIntervalTicks));
     }
 
-    protected abstract Unit createUnit(int x, int y, int team);
+    protected abstract Unit createUnit(String unitTypeId, int x, int y, int team);
 
     private Point findSpawnPoint(GamePanel panel) {
         List<Point> candidates = buildSpawnCandidates();
@@ -107,7 +111,6 @@ public abstract class UnitFactoryBuilding extends Building {
         int maxRings = 12;
         int verticalPushOut = 6;
 
-        // Ring-first order: start at left-bottom, then trace rectangle clockwise.
         for (int ring = 0; ring < maxRings; ring++) {
             int ringOffset = spawnClearRadius + ring * step;
 

@@ -2,6 +2,7 @@ package starcraft.objects.buildings.terran;
 
 import starcraft.objects.Unit;
 import starcraft.objects.buildings.UnitFactoryBuilding;
+import starcraft.objects.units.terran.Firebat;
 import starcraft.objects.units.terran.Marine;
 
 import java.awt.*;
@@ -9,6 +10,8 @@ import java.awt.*;
 public class Barracks extends UnitFactoryBuilding {
     public static final int BUILD_WIDTH = 100;
     public static final int BUILD_HEIGHT = 80;
+    public static final String QUEUE_MARINE = "marine";
+    public static final String QUEUE_FIREBAT = "firebat";
 
     public Barracks(int x, int y, int team) {
         super(x, y, team, BUILD_WIDTH, BUILD_HEIGHT, 1000, 30, 20, 24);
@@ -16,11 +19,18 @@ public class Barracks extends UnitFactoryBuilding {
     }
 
     public void enqueueMarine() {
-        enqueueUnit();
+        enqueueUnit(QUEUE_MARINE);
+    }
+
+    public void enqueueFirebat() {
+        enqueueUnit(QUEUE_FIREBAT);
     }
 
     @Override
-    protected Unit createUnit(int x, int y, int team) {
+    protected Unit createUnit(String unitTypeId, int x, int y, int team) {
+        if (QUEUE_FIREBAT.equals(unitTypeId)) {
+            return new Firebat(x, y, team);
+        }
         return new Marine(x, y, team);
     }
 
@@ -45,6 +55,5 @@ public class Barracks extends UnitFactoryBuilding {
             g.drawLine(drawX + 10, drawY + 8, drawX + width - 10, drawY + 8);
             g.drawLine(drawX + 10, drawY + 16, drawX + width - 10, drawY + 16);
         }
-
     }
 }
