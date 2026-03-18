@@ -93,7 +93,7 @@ public class MoveLogic {
         Point node = unit.getNextPathNode(terrain);
         double targetAng = (node == null)
                 ? Math.atan2(unit.targetY - unit.y, unit.targetX - unit.x)
-                : Math.atan2(terrain.cellCenterY(node.x) - unit.y, terrain.cellCenterX(node.x) - unit.x);
+                : Math.atan2(terrain.cellCenterY(node.y) - unit.y, terrain.cellCenterX(node.x) - unit.x);
 
         double mX = Math.cos(targetAng);
         double mY = Math.sin(targetAng);
@@ -141,3 +141,4 @@ public class MoveLogic {
         unit.currentAngle = Math.atan2(unit.velY, unit.velX);
     }
 }
+

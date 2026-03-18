@@ -109,15 +109,17 @@ public abstract class UnitFactoryBuilding extends Building {
 
         int step = Math.max(10, spawnClearRadius - 4);
         int maxRings = 12;
-        int verticalPushOut = 6;
+        int verticalPushOut = 2;
+        int baseWidth = getPathingBlockWidth();
+        int baseHeight = getPathingBlockHeight();
 
         for (int ring = 0; ring < maxRings; ring++) {
             int ringOffset = spawnClearRadius + ring * step;
 
-            int xRight = (int) Math.round(x + width / 2.0 + ringOffset);
-            int xLeft = (int) Math.round(x - width / 2.0 - ringOffset);
-            int yTop = (int) Math.round(y - height / 2.0 - ringOffset - verticalPushOut);
-            int yBottom = (int) Math.round(y + height / 2.0 + ringOffset + verticalPushOut);
+            int xRight = (int) Math.round(x + baseWidth / 2.0 + ringOffset);
+            int xLeft = (int) Math.round(x - baseWidth / 2.0 - ringOffset);
+            int yTop = (int) Math.round(y - baseHeight / 2.0 - ringOffset - verticalPushOut);
+            int yBottom = (int) Math.round(y + baseHeight / 2.0 + ringOffset + verticalPushOut);
 
             if (yTop >= yBottom) {
                 continue;
@@ -158,7 +160,8 @@ public abstract class UnitFactoryBuilding extends Building {
             return false;
         }
 
-        double minDistSq = spawnClearRadius * spawnClearRadius;
+        double minSpawnSpacing = Math.max(12.0, spawnClearRadius * 0.65);
+        double minDistSq = minSpawnSpacing * minSpawnSpacing;
         for (Unit unit : units) {
             if (unit == null || unit.hp <= 0) continue;
             double dx = unit.x - spawnX;
@@ -167,6 +170,7 @@ public abstract class UnitFactoryBuilding extends Building {
                 return false;
             }
         }
+
 
         return true;
     }

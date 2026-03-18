@@ -10,6 +10,8 @@ import java.awt.*;
 public class Barracks extends UnitFactoryBuilding {
     public static final int BUILD_WIDTH = 100;
     public static final int BUILD_HEIGHT = 80;
+    private static final double PATHING_WIDTH_RATIO_TO_COMMAND_CENTER = 105.0 / 117.0;
+    private static final double PATHING_HEIGHT_RATIO_TO_COMMAND_CENTER = 73.0 / 83.0;
     public static final String QUEUE_MARINE = "marine";
     public static final String QUEUE_FIREBAT = "firebat";
 
@@ -24,6 +26,18 @@ public class Barracks extends UnitFactoryBuilding {
 
     public void enqueueFirebat() {
         enqueueUnit(QUEUE_FIREBAT);
+    }
+
+    @Override
+    public int getPathingBlockWidth() {
+        int commandCenterEquivalent = Math.max(20, 117 - 56);
+        return Math.max(20, (int) Math.round(commandCenterEquivalent * PATHING_WIDTH_RATIO_TO_COMMAND_CENTER));
+    }
+
+    @Override
+    public int getPathingBlockHeight() {
+        int commandCenterEquivalent = Math.max(20, 80 - 32);
+        return Math.max(20, (int) Math.round(commandCenterEquivalent * PATHING_HEIGHT_RATIO_TO_COMMAND_CENTER));
     }
 
     @Override
@@ -57,3 +71,4 @@ public class Barracks extends UnitFactoryBuilding {
         }
     }
 }
+

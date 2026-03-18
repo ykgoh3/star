@@ -1,4 +1,5 @@
 package starcraft.objects.units.terran;
+import starcraft.core.TerrainGrid;
 
 import starcraft.core.GamePanel;
 import starcraft.engine.RenderUtils;
@@ -369,8 +370,7 @@ public class SCV extends Unit {
     }
 
     private void moveToCenterAndReturn(GamePanel panel) {
-        double distToEdge = distanceToBuildingEdge(returnCenter);
-        if (distToEdge > RETURN_RANGE) {
+        if (!hasReachedReturnCenter(panel, returnCenter)) {
             double[] returnPoint = getReturnApproachPoint();
             commandMove(returnPoint[0], returnPoint[1]);
             returningCargo = true;
@@ -394,6 +394,7 @@ public class SCV extends Unit {
             clearHarvestOrder();
         }
     }
+
 
     private void approachCurrentMineral() {
         if (mineralTarget == null) return;
@@ -437,27 +438,95 @@ public class SCV extends Unit {
         double cy = returnCenter.getY();
         double halfW = returnCenter.getPathingBlockWidth() / 2.0;
         double halfH = returnCenter.getPathingBlockHeight() / 2.0;
+        double clearance = size * 0.5 + RETURN_APPROACH_MARGIN;
 
         double dx = x - cx;
         double dy = y - cy;
-
         if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) {
             dy = 1.0;
         }
 
-        double tx = cx + clamp(dx, -halfW * 0.45, halfW * 0.45);
-        double ty = cy + Math.signum(dy) * (halfH + RETURN_APPROACH_MARGIN);
+        double absDx = Math.abs(dx);
+        double absDy = Math.abs(dy);
+        double xRatio = absDx / Math.max(1.0, halfW);
+        double yRatio = absDy / Math.max(1.0, halfH);
+
+        if (xRatio > yRatio) {
+            double tx = cx + Math.signum(dx) * (halfW + clearance);
+            double ty = cy + clamp(dy, -halfH - size * 0.25, halfH + size * 0.25);
+            return new double[]{tx, ty};
+        }
+
+        double tx = cx + clamp(dx, -halfW - size * 0.25, halfW + size * 0.25);
+        double ty = cy + Math.signum(dy) * (halfH + clearance);
         return new double[]{tx, ty};
     }
 
-    private double distanceToBuildingEdge(CommandCenter center) {
-        if (center == null) return Double.MAX_VALUE;
+    private boolean hasReachedReturnCenter(GamePanel panel, CommandCenter center) {
+        return isTouchingReturnBounds(center)
+                || isTouchingReturnPathing(center)
+                || isTouchingReturnBlockedCells(panel, center);
+    }
 
-        double dropOffHalfW = Math.max(center.getPathingBlockWidth() / 2.0, center.getWidth() / 2.0 - 10.0);
-        double dropOffHalfH = Math.max(center.getPathingBlockHeight() / 2.0, center.getHeight() / 2.0 - 8.0);
-        double dx = Math.max(Math.abs(x - center.getX()) - dropOffHalfW, 0.0);
-        double dy = Math.max(Math.abs(y - center.getY()) - dropOffHalfH, 0.0);
-        return Math.sqrt(dx * dx + dy * dy);
+    private boolean isTouchingReturnBounds(CommandCenter center) {
+        if (center == null) return false;
+
+        double halfW = center.getWidth() / 2.0;
+        double halfH = center.getHeight() / 2.0;
+        double dx = Math.max(Math.abs(x - center.getX()) - halfW, 0.0);
+        double dy = Math.max(Math.abs(y - center.getY()) - halfH, 0.0);
+        double distanceToBounds = Math.sqrt(dx * dx + dy * dy);
+        return distanceToBounds <= size * 0.125 + RETURN_APPROACH_MARGIN;
+    }
+
+    private boolean isTouchingReturnPathing(CommandCenter center) {
+        if (center == null) return false;
+
+        double halfW = center.getPathingBlockWidth() / 2.0;
+        double halfH = center.getPathingBlockHeight() / 2.0;
+        double dx = Math.max(Math.abs(x - center.getX()) - halfW, 0.0);
+        double dy = Math.max(Math.abs(y - center.getY()) - halfH, 0.0);
+        double distanceToPathing = Math.sqrt(dx * dx + dy * dy);
+        return distanceToPathing <= size * 0.5;
+    }
+
+    private boolean isTouchingReturnBlockedCells(GamePanel panel, CommandCenter center) {
+        if (panel == null || center == null) return false;
+
+        TerrainGrid terrain = panel.getTerrain();
+        if (terrain == null) return false;
+
+        double minWorldX = center.getX() - center.getPathingBlockWidth() / 2.0;
+        double maxWorldX = center.getX() + center.getPathingBlockWidth() / 2.0;
+        double minWorldY = center.getY() - center.getPathingBlockHeight() / 2.0;
+        double maxWorldY = center.getY() + center.getPathingBlockHeight() / 2.0;
+
+        int minCellX = (int) clamp(Math.floor(minWorldX / terrain.cellSize), 0, terrain.cols - 1);
+        int maxCellX = (int) clamp(Math.floor(maxWorldX / terrain.cellSize), 0, terrain.cols - 1);
+        int minCellY = (int) clamp(Math.floor(minWorldY / terrain.cellSize), 0, terrain.rows - 1);
+        int maxCellY = (int) clamp(Math.floor(maxWorldY / terrain.cellSize), 0, terrain.rows - 1);
+
+        if (isPointInsideBlockedCellRange(x, y, minCellX, maxCellX, minCellY, maxCellY, terrain)) {
+            return true;
+        }
+
+        double radius = size * 0.5;
+        for (int sample = 0; sample < 8; sample++) {
+            double angle = sample * Math.PI / 4.0;
+            double sampleX = x + Math.cos(angle) * radius;
+            double sampleY = y + Math.sin(angle) * radius;
+            if (isPointInsideBlockedCellRange(sampleX, sampleY, minCellX, maxCellX, minCellY, maxCellY, terrain)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean isPointInsideBlockedCellRange(double worldX, double worldY, int minCellX, int maxCellX, int minCellY, int maxCellY, TerrainGrid terrain) {
+        int cellX = (int) clamp(Math.floor(worldX / terrain.cellSize), 0, terrain.cols - 1);
+        int cellY = (int) clamp(Math.floor(worldY / terrain.cellSize), 0, terrain.rows - 1);
+        return cellX >= minCellX && cellX <= maxCellX && cellY >= minCellY && cellY <= maxCellY;
     }
 
     private double clamp(double value, double min, double max) {
@@ -565,6 +634,9 @@ public class SCV extends Unit {
         drawHealthBar(g);
     }
 }
+
+
+
 
 
 
